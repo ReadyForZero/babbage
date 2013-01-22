@@ -46,11 +46,6 @@
                :layer-strat pmap
                :lazy? false})
 
-(defmacro delay-when [delay expr]
-  `(if ~delay
-     (delay ~expr)
-     ~expr))
-
 (defn- mapentry->node [[k v]]
   {:requires nil :provides (keyword (name k)) :value (constantly v)})
 
