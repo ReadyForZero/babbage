@@ -60,6 +60,20 @@
         (map (fn [[k v]] [k (v (nil-or (get argument-map k) default))]))
         (into {}))))
 
+
+(defn any-pure? [m]
+  (or (when (pure? m) (println m) true)
+      (and (map? m)
+           (some any-pure? (vals m)))
+      false))
+
+(defn purify
+  "Replace all pure values in a map with nil."
+  [m]
+  (cond (pure? m) nil
+        (map? m) (fmap purify m)
+        :else m))
+
 (defn in-maps
   "With three arguments, return a function which, when called with arity
    maps, applies op to the values of the map (as in fmap).
@@ -68,7 +82,8 @@
 
    If any key in an argument map has a nil value, it will be replaced
    by the default; if any argument is nil, it will be replaced
-   by (pure default).
+   by (pure default). The exception is if *all* arguments are nil, in
+   which case the result will be nil.
 
    (in-map / 2 0 {:x 6} {:x 2}) --> {:x 3}
 
@@ -76,33 +91,15 @@
 
    Note that the non-nil arguments determine the results that will
    eventually be present; e.g., if one of the maps is {}, rather
-   than nil, the result will be {}.
-
-   Purity and danger: if all the arguments are nil (or, with
-   in-nested-maps, if all the values of a given key at a given level
-   of nesting are nil), then, since in-maps can't figure out what the
-   relevant keys for which to apply the function are, the result will
-   be a map-like object that thinks it contains the default value for
-   *any* key:
-
-   (in-maps + 2 0 nil nil) --> (pure 0)
-
-   (in-nested-maps 2 + 2 1 {:x {:x 2} :y nil} {:x nil :y nil}) --> {:x {:x 3} :y (pure 2)}
-
-   (We have (pure 2) under the :y key because of the addition (pure 1) + (pure 1).)
-
-   You can use assoc, dissoc, and get with these map-like objects, but
-   they are not seqable, *even though* they are instances of
-   clojure.lang.Seqable (there seems to be no way to avoid this, since
-   Associative extends IPersistentCollection extends Seqable)."
-  
+   than nil, the result will be {}."  
   ([op arity default] (fn [& args] (apply in-maps op arity default args)))
   ([op arity default & args]
      (assert (== arity (count args))
              (format "op has arity %d but %d arguments provided" arity (count args)))
-     (reduce (partial map-apply default)
-             (Pure. (curry op arity))
-             (map #(nil-or % (Pure. default)) args))))
+     (purify
+      (reduce (partial map-apply default)
+              (Pure. (curry op arity))
+              (map #(nil-or % (Pure. default)) args)))))
 
 (defn- in-nested-maps* [nesting op arity default]
   (if (== nesting 1)
