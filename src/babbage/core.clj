@@ -238,9 +238,9 @@
   [res (if (key res) res (assoc res complement-key (:all res)))])
 
 (defn make-set-function-name
-  "(make-set-function-name \"and\" [:a :b :c]) -> :<a-and-b-and-c>"
+  "(make-set-function-name \"and\" [:a :b :c]) -> :Sa-and-b-and-cZ"
   [logical-operation-name keys]
-  (keyword (str "<" (str/join (str "-" logical-operation-name "-") (map name keys)) ">")))
+  (keyword (str "S" (str/join (str "-" logical-operation-name "-") (map name keys)) "Z")))
 
 (defn intersection-name [& keys]
   (make-set-function-name "and" keys))
@@ -250,7 +250,7 @@
 (defsetop intersect
   "Add the intersection of two or more subsets, named by the key
    arguments, to the set given by the first argument. The resulting
-   intersection will be named :<x-and-y-and-...-and-z>, where x, y, ... z
+   intersection will be named :Sx-and-y-and-...-and-zZ, where x, y, ... z
    are the names of the argument sets."
   [key1 & keys]
   [result-name (make-set-function-name "and" (list* key1 keys))]
@@ -259,7 +259,7 @@
 (defsetop union
   "Add the union of two or more subsets, named by the key arguments,
    to the set given by the first argument. The resulting union will be
-   named :<x-or-y-or-...-or-z>, where x, y, ... z are the names of the
+   named :Sx-or-y-or-...-or-zZ, where x, y, ... z are the names of the
    argument sets." 
   [key1 & keys]
   [result-name (make-set-function-name "or" (list* key1 keys))]
@@ -280,7 +280,7 @@
                                 (flatten [s f]))]
                 (recur (op* f [(first keyseqs) (second keyseqs)])
                        (list* generated (drop 2 keyseqs))))))]
-    (op* f (reverse (map #(if (vector? %) % [%]) keyseqs)))))
+    (op* f (reverse (map #(if (or (seq? %) (vector? %)) % [%]) keyseqs)))))
 
 (def ^{:arglists '([s & keyseqs])
        :doc "Created nested intersections of the set, using the
@@ -291,14 +291,14 @@
 
   creates the following subsets, in this order:
 
-  <bar-and-quux-and-frob>
-  <bar-and-spam>
-  <baz-and-quux-and-frob>
-  <baz-and-spam>
-  <foo-and-bar-and-quux-and-frob>
-  <foo-and-bar-and-spam>
-  <foo-and-baz-and-quux-and-frob>
-  <foo-and-baz-and-spam>"}
+  Sbar-and-quux-and-frobZ
+  Sbar-and-spamZ
+  Sbaz-and-quux-and-frobZ
+  Sbaz-and-spamZ
+  Sfoo-and-bar-and-quux-and-frobZ
+  Sfoo-and-bar-and-spamZ
+  Sfoo-and-baz-and-quux-and-frobZ
+  Sfoo-and-baz-and-spamZ"}
   intersections (partial nested-set-operations intersect "and"))
 
 (def ^{:arglists '([s & keyseqs])
@@ -310,14 +310,14 @@
 
   creates the following subsets, in this order:
 
-  <bar-or-quux-or-frob>
-  <bar-or-spam>
-  <baz-or-quux-or-frob>
-  <baz-or-spam>
-  <foo-or-bar-or-quux-or-frob>
-  <foo-or-bar-or-spam>
-  <foo-or-baz-or-quux-or-frob>
-  <foo-or-baz-or-spam>"}
+  Sbar-or-quux-or-frobZ
+  Sbar-or-spamZ
+  Sbaz-or-quux-or-frobZ
+  Sbaz-or-spamZ
+  Sfoo-or-bar-or-quux-or-frobZ
+  Sfoo-or-bar-or-spamZ
+  Sfoo-or-baz-or-quux-or-frobZ
+  Sfoo-or-baz-or-spamZ"}
   unions (partial nested-set-operations union "or"))
 
 ;; mapping can be parallelized
