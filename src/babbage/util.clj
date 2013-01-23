@@ -47,17 +47,22 @@
 (defmacro fnmeta [meta & sigs]
   `(with-meta (fn ~@sigs) ~meta))
 
+;; returns nil if a cycle was encountered, otherwise set of seen nodes.
+(defn dfs [f seen depmap]
+  (let [seen (conj seen (:provides f))]
+    (loop [out (keep depmap (:requires f)) seen seen]
+      (if (seen (:provides out))
+        nil
+        (if-let [g (first out)]
+          (when-let [new-seen (dfs g seen depmap)]
+            (recur (rest out) new-seen))
+          seen)))))
+
 (defn circular? [has-requires depmap]
   (if-let [f (first has-requires)]
-    (let [stack [f]
-          seen #{(:provides f)}]
-      (loop [seen seen stack stack]
-        (if-let [f (first stack)]
-          (if (some seen (:requires f))
-            true
-            (recur (conj seen (:provides f))
-                   (concat (rest stack) (map #(get depmap %) (:requires f)))))
-          (circular? (remove #(seen (:provides %)) (rest has-requires)) depmap))))
+    (let [dfs-result (dfs f #{} depmap)]
+      (if (nil? dfs-result) true
+          (recur (remove (comp dfs-result :provides) has-requires) depmap)))
     false))
 
 (defn still-required [independent dependent]

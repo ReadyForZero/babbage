@@ -37,3 +37,9 @@
                       {:requires [:count :sum] :provides :mean}
                       {:requires [:xs] :provides :sum-squared}
                       {:requires [:count :sum-squared] :provides :mean2}])))
+(let [items [{:requires [:periods :bpu] :provides :bps}
+                          {:requires [:p] :provides :bpu}
+                          {:requires [] :provides :periods}
+                          {:requires [:periods] :provides :p}]
+      depmap (zipmap (map :provides items) items)]
+  (expect false (boolean (circular? items depmap))))
