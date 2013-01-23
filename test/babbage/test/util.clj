@@ -77,3 +77,16 @@
                           [[:y] :q]])
       depmap (zipmap (map :provides items) items)]
   (expect true (boolean (circular? items depmap))))
+
+(let [items (map mk-node [[[:a :b] :c]
+                          [[:c :d] :e]
+                          [[] :a]
+                          [[:a :d] :b]
+                          [[:a] :d]
+                          [[:x :y] :z]
+                          [[:y] :w]
+                          [[:u] :y]
+                          [[:w :q] :x]
+                          [[:y] :q]])
+      depmap (zipmap (map :provides items) items)]
+  (expect false (boolean (circular? items depmap))))

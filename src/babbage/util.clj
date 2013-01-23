@@ -47,21 +47,30 @@
 (defmacro fnmeta [meta & sigs]
   `(with-meta (fn ~@sigs) ~meta))
 
-;; returns nil if a cycle was encountered, otherwise set of seen nodes.
-(defn dfs [f seen depmap]
-  (let [seen (conj seen (:provides f))]
-    (loop [out (keep depmap (:requires f)) seen seen all-seen seen]
+;; returns nil if a cycle was encountered, otherwise pair of visited
+;; nodes, map of nodes to ancestors
+(defn dfs [f seen ancestors depmap]
+  (let [f-name (:provides f)
+        seen (conj seen f-name)
+        out (keep depmap (:requires f))]
+    (loop [out out seen seen ancestors ancestors]
       (if-let [g (first out)]
-        (when-not (seen (:provides g))
-          (when-let [new-seen (dfs g seen depmap)]
-            (recur (rest out) seen (set/union new-seen all-seen))))
-        all-seen))))
+        (let [g-name (:provides g)]
+          (if (seen g-name)
+            (when-not (contains? (ancestors f-name) g-name) ;; back edge
+              (recur (rest out) (conj seen g-name) ancestors)) ;; cross edge
+            ;; forward edge
+            (when-let [[new-seen new-anc] (dfs g seen (assoc ancestors g-name
+                                                             (set/union #{f-name} (ancestors f-name)))
+                                               depmap)]
+              (recur (rest out) new-seen new-anc))))
+        [seen ancestors]))))
 
 (defn circular? [has-requires depmap]
   (if-let [f (first has-requires)]
-    (let [dfs-result (dfs f #{} depmap)]
+    (let [dfs-result (dfs f #{} {} depmap)]
       (if (nil? dfs-result) true
-          (recur (remove (comp dfs-result :provides) has-requires) depmap)))
+          (recur (remove (comp (first dfs-result) :provides) has-requires) depmap)))
     false))
 
 (defn still-required [independent dependent]
