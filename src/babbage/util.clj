@@ -50,12 +50,12 @@
 ;; returns nil if a cycle was encountered, otherwise set of seen nodes.
 (defn dfs [f seen depmap]
   (let [seen (conj seen (:provides f))]
-    (loop [out (keep depmap (:requires f)) seen seen]
+    (loop [out (keep depmap (:requires f)) seen seen all-seen seen]
       (if-let [g (first out)]
         (when-not (seen (:provides g))
           (when-let [new-seen (dfs g seen depmap)]
-            (recur (rest out) seen)))
-        seen))))
+            (recur (rest out) seen (set/union new-seen all-seen))))
+        all-seen))))
 
 (defn circular? [has-requires depmap]
   (if-let [f (first has-requires)]
