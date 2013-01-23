@@ -37,9 +37,31 @@
                       {:requires [:count :sum] :provides :mean}
                       {:requires [:xs] :provides :sum-squared}
                       {:requires [:count :sum-squared] :provides :mean2}])))
-(let [items [{:requires [:periods :bpu] :provides :bps}
-                          {:requires [:p] :provides :bpu}
-                          {:requires [] :provides :periods}
-                          {:requires [:periods] :provides :p}]
+
+(defn mk-node [[requires provides]]
+  {:requires requires :provides provides})
+
+(let [items (map mk-node [[[:periods :bpu] :bps]
+                          [[:p] :bpu]
+                          [[] :periods]
+                          [[:periods] :p]])
       depmap (zipmap (map :provides items) items)]
   (expect false (boolean (circular? items depmap))))
+
+(let [items (map mk-node [[[:a :b] :c]
+                          [[:c :d] :e]
+                          [[] :a]
+                          [[:a :d] :b]
+                          [[:a] :d]])
+      _ (println items)
+      depmap (zipmap (map :provides items) items)]
+  (expect false (boolean (circular? items depmap))))
+
+
+(let [items (map mk-node [[[:a :b] :c]
+                          [[:c :d] :e]
+                          [[] :a]
+                          [[:a :d] :b]
+                          [[:c] :d]])
+      depmap (zipmap (map :provides items) items)]
+  (expect true (boolean (circular? items depmap))))

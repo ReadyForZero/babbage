@@ -51,12 +51,11 @@
 (defn dfs [f seen depmap]
   (let [seen (conj seen (:provides f))]
     (loop [out (keep depmap (:requires f)) seen seen]
-      (if (seen (:provides out))
-        nil
-        (if-let [g (first out)]
+      (if-let [g (first out)]
+        (when-not (seen (:provides g))
           (when-let [new-seen (dfs g seen depmap)]
-            (recur (rest out) new-seen))
-          seen)))))
+            (recur (rest out) seen)))
+        seen))))
 
 (defn circular? [has-requires depmap]
   (if-let [f (first has-requires)]
