@@ -53,7 +53,6 @@
                           [[] :a]
                           [[:a :d] :b]
                           [[:a] :d]])
-      _ (println items)
       depmap (zipmap (map :provides items) items)]
   (expect false (boolean (circular? items depmap))))
 
