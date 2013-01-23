@@ -192,10 +192,10 @@
   :doc "Makes a plot of a vector space.")
 
 (defconstrainedfn ratio
-  [of to & [name]]
-  [(keyword? of) (or (number? to) (keyword? to)) (or (nil? name) (keyword? name))]
+  [of to & [ratio-name]]
+  [(keyword? of) (or (number? to) (keyword? to)) (or (nil? ratio-name) (keyword? ratio-name))]
   (let [to-s (if (number? to) (str to) (name to))
-        key (or name (keyword (str (name of) "-to-" to-s)))]
+        key (or ratio-name (keyword (str (name of) "-to-" to-s)))]
     (fn [m] (assoc m key (d/ratio of to)))))
 
 (defn sets
