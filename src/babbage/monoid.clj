@@ -44,7 +44,7 @@
    :independents (rows independents)})
 
 (defn count-binned [o]
-  (if (nil? o) {} {o (sum 1)}))
+  (if (nil? o) (sorted-map) (sorted-map o (sum 1))))
 
 (defn- interval-< [i1 i2]
   (< (second i1) (first i2)))
@@ -79,10 +79,10 @@
       (mk-monoid add-histogram
                  (with-meta 
                    (if my-val
-                     {[my-interval (+ my-interval width)] 1}
-                     {})
+                     (sorted-map [my-interval (+ my-interval width)] 1)
+                     (sorted-map))
                    {:width width})
-                 {}))))
+                 (sorted-map)))))
 
 (defn add-vector-space [& vs]
   (assert (apply = (map #(map count %) vs)) "Vectors must be of the same dimensionality.")
