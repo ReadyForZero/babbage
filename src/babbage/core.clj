@@ -103,6 +103,16 @@
 (defn linreg [& independent-fns]
   (statfn linreg d/linreg :requires (apply dependence independent-fns)))
 
+(defn by
+   "Allows passing whole records to a stats function within a call to
+   stats. Similar to map-with-key and map-with-value, but without
+   creating a map."
+   [extractor field-name sfunc1 & sfuncs]
+  (let [sfuncs (cons sfunc1 sfuncs)
+        prepared (apply stats identity sfuncs)]
+    (fn [m] (assoc m field-name (with-meta (fn [ent v] (when v (prepared (extractor ent))))
+                                 {:whole-record true})))))
+
 (defn map-with-key
   "Add a map named field-name to the result map. The keys for the map
    are computed using key-extractor. The values are drawn from the
@@ -129,8 +139,9 @@
   (let [sfuncs (cons value-sfunc1 value-sfuncs)
         prepared (apply stats identity sfuncs)]
     (fn [m] (assoc m field-name (with-meta (fn [ent v]
-                                            {(key-extractor ent)
-                                             (prepared v)})
+                                            (when v
+                                              {(key-extractor ent)
+                                               (prepared v)}))
                                  {:whole-record true})))))
 
 (defn map-with-value
@@ -159,7 +170,8 @@
   (let [sfuncs (cons value-sfunc1 value-sfuncs)
         prepared (apply stats value-extractor sfuncs)]
     (fn [m] (assoc m field-name (with-meta (fn [ent v]
-                                            {v (prepared ent)})
+                                            (when v
+                                              {v (prepared ent)}))
                                  {:whole-record true})))))
 
 (defconstrainedfn map-of
