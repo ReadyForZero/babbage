@@ -85,7 +85,7 @@
                  (sorted-map)))))
 
 (defn add-vector-space [& vs]
-  (assert (apply = (map #(map count %) vs)) "Vectors must be of the same dimensionality.")
+  (assert (apply = (mapcat #(map count %) vs)) "Vectors must be of the same dimensionality.")
   (with-meta
     (apply concat vs)
     {:maxes  (apply map clojure.core/max (keep #(-> % meta :maxes) vs))
