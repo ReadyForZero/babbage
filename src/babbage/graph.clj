@@ -7,13 +7,22 @@
             [macroparser.parsers :as p]
             [the.parsatron :as parsatron]))
 
-(defn parse-defgraphfn []
+(defn- parse-defgraphfn []
   (p/parseq->map
    (p/named :name (p/symbol))
    (p/named :provides (p/maybe (p/keyword)))
    (p/named :docstring (p/maybe (p/string)))
    (p/named :attr-map (p/maybe (p/map)))
    (f/arities)))
+
+(defn- ok-destructuring?
+  [b]
+  (or (symbol? b)
+      (symbol? (:as b))))
+
+(defn- get-requires [bindings]
+  (println bindings)
+  (mapv (comp keyword (fn [b] (if (symbol? b) b (:as b)))) bindings))
 
 (defmacro defgraphfn
   "Define a function that documents its required input and produced
@@ -30,14 +39,14 @@
         name (:name parsed)]
     (assert (== 1 (count arities))
             (str "Multiple arities not supported for graph functions: " (:name parsed)))
-    (assert (and (every? symbol? (:bindings (:params (first arities))))
-                 (nil? (:rest (:params (first arities))))
-                 (nil? (:as (:params (first arities)))))
-            (str "Destructuring not supported for graph functions: " (:name parsed)))
+    (assert (nil? (:rest (:params (first arities))))
+            (str "Rest params not allowed in top-level bindings in graph fn:" (:name parsed)))
+    (assert (and (every? ok-destructuring? (:bindings (:params (first arities)))))
+            (str "Destructuring top-level arguments in graph fn " (:name parsed) " requires :as"))
     (let [provides (or (:provides parsed) (keyword name))
-          requires (mapv keyword (b/bound-symbols (:params (first arities))))
+          requires (get-requires (:bindings (:params (first arities))))
           attr-map (merge (:attr-map parsed)
-                          {:arglists (list 'quote (list (vec (b/bound-symbols (:params (first arities))))))})
+                          {:arglists (list 'quote (b/unparse-bindings (:params (first arities))))})
           fn-attr-map (merge attr-map {:provides provides :requires requires})]
       `(def ~(with-meta name attr-map)
          (with-meta ~(f/unparse-function (assoc parsed :type 'fn)) ~fn-attr-map)))))
