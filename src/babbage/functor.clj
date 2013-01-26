@@ -71,7 +71,7 @@
   "Replace all pure values in a map with nil."
   [m]
   (cond (pure? m) nil
-        (map? m) (fmap purify m)
+        (map? m) (f/fmap purify m)
         :else m))
 
 (defn in-maps
