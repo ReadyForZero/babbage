@@ -338,3 +338,8 @@
   (let [leaf-fn (sets-fn fields)]
     (when (seq input)
       (m/value (reduce m/<> (pmap leaf-fn input))))))
+
+(defn xget
+  "Enables fetching of a value across multiple sets."
+  [data sets & ks]
+  (map #(get-in data (cons % ks)) sets))
