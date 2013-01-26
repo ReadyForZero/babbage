@@ -3,9 +3,7 @@
 (ns babbage.dependent
   (:require [babbage.monoid :as m]
             [clojure.algo.generic.functor :as f]
-            [clojure.set :as set]
-            [incanter.charts :as charts]
-            [incanter.stats :as istats])
+            [clojure.set :as set])
   (:use babbage.util        
         [trammel.core :only [defconstrainedfn]]))
 
@@ -118,20 +116,6 @@
   (let [{:keys [sums counts]} (-!> m :vector-space meta)
         means (map #(/ % counts) sums)]
     (pearson-compute means (-!> m :vector-space))))
-
-;; here be ugly haxx.
-;; see: https://github.com/liebke/incanter/issues/104
-(defn linear-model [y x]
-  (letfn [(correct-scalar-abs [x]
-            (if (number? x)
-              (if (< x 0) (*' -1 x) x)
-              (map correct-scalar-abs x)))]
-    (with-redefs [istats/scalar-abs correct-scalar-abs]
-      (istats/linear-model y x))))
-
-(defnmeta linreg {:requires #{:dependence}} [m]
-  (linear-model (-> m :dependence :dependent)
-                (-> m :dependence :independents)))
 
 (defn ratio
   [of to]

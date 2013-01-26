@@ -2,8 +2,7 @@
 ;; protocol for combining ops
 (ns babbage.monoid
   (:refer-clojure :exclude [max min])
-  (:require [clojure.set :as set]
-            [incanter.core :as incanter])
+  (:require [clojure.set :as set])
   (:use [clojure.algo.generic.functor :only [fmap]]))
 
 (defprotocol Monoid
@@ -35,9 +34,6 @@
 (def prod (monoid * 1))
 (def snd (monoid (fn [s o] o) nil))
 (def fst (monoid (fn [s o] s) nil))
-
-(def rows (monoid incanter/bind-rows []))
-(def cols (monoid incanter/bind-columns []))
 
 (defn dependence [dependent independents]
   {:dependent (rows [dependent])
