@@ -45,7 +45,7 @@
     (let [provides (or (:provides parsed) (keyword name))
           requires (get-requires (:bindings (:params (first arities))))
           attr-map (merge (:attr-map parsed)
-                          {:arglists (list 'quote (b/unparse-bindings (:params (first arities))))})
+                          {:arglists (list 'quote (list (b/unparse-bindings (:params (first arities)))))})
           fn-attr-map (merge attr-map {:provides provides :requires requires})]
       `(def ~(with-meta name attr-map)
          (with-meta ~(f/unparse-function (assoc parsed :type 'fn)) ~fn-attr-map)))))
