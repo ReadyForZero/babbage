@@ -65,7 +65,7 @@
   (expect nil (:Sis-good-and-is-bad> with-subsets))
 
   ;; exhaustive
-  (expect (:all with-subsets) (:Sis-good-or-is-bad> with-subsets)))
+  (expect (:all with-subsets) (:Sis-good-or-is-badZ with-subsets)))
 
 (let [r (calculate (-> (merge status-sets low-sets)
                        sets
@@ -74,11 +74,11 @@
                    fields
                    values)]
 
-  (expect 16 (-> r :Slow-and-is-bad> :v :max))
-  (expect 1 (-> r :Slow-and-is-good> :v :min))
-  (expect 11 (-> r :Shigh-and-is-bad> :v :min))
+  (expect 16 (-> r :Slow-and-is-badZ :v :max))
+  (expect 1 (-> r :Slow-and-is-goodZ :v :min))
+  (expect 11 (-> r :Shigh-and-is-badZ :v :min))
 
-  (expect 1 (-> r :Shigh-and-is-bad> :x :count))
+  (expect 1 (-> r :Shigh-and-is-badZ :x :count))
   )
 
 
