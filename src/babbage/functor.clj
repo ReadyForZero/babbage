@@ -62,7 +62,7 @@
 
 
 (defn any-pure? [m]
-  (or (when (pure? m) (println m) true)
+  (or (pure? m)
       (and (map? m)
            (some any-pure? (vals m)))
       false))

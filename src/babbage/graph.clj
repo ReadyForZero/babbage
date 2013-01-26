@@ -21,7 +21,6 @@
       (symbol? (:as b))))
 
 (defn- get-requires [bindings]
-  (println bindings)
   (mapv (comp keyword (fn [b] (if (symbol? b) b (:as b)))) bindings))
 
 (defmacro defgraphfn
