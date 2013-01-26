@@ -7,5 +7,5 @@
                  [org.clojure/algo.generic "0.1.0"]
                  [macroparser "0.0.1"]
                  [the/parsatron "0.0.4"]
-                 [trammel "0.8.0-SNAPSHOT"]]
+                 [trammel "0.7.0"]]
   :description "Intelligent accumulation of statistics over a seq")
