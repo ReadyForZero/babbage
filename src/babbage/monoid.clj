@@ -74,18 +74,22 @@
                      h2))))))
 
 (defn histogram [width]
-  (fn [& [my-val]]
-    (let [my-interval (when my-val (int (- my-val (mod my-val width))))]
-      (mk-monoid add-histogram
-                 (with-meta 
-                   (if my-val
-                     (sorted-map [my-interval (+ my-interval width)] 1)
-                     (sorted-map))
-                   {:width width})
-                 (sorted-map)))))
+  (let [precision (when (< width 1.0) (-> width str count (- 2)))
+        multiplier (when precision (Math/pow 10 precision))]
+    (letfn [(cut [n] (if (nil? precision) n
+                         (-> n (* multiplier) int (/ multiplier))))]
+      (fn [& [my-val]]
+        (let [my-interval (when my-val (cut (- my-val (mod my-val width))))]
+          (mk-monoid add-histogram
+                     (with-meta
+                       (if my-val
+                         (sorted-map [(cut my-interval) (cut (+ my-interval width))] 1)
+                         (sorted-map))
+                       {:width width})
+                     (sorted-map)))))))
 
 (defn add-vector-space [& vs]
-  (assert (apply = (mapcat #(map count %) vs)) "Vectors must be of the same dimensionality.")
+  (assert (apply = (mapcat #(map count %) vs)) "Vectors must be of the same dimensionality: " vs)
   (with-meta
     (apply concat vs)
     {:maxes  (apply map clojure.core/max (keep #(-> % meta :maxes) vs))
