@@ -334,10 +334,13 @@
 
 ;; mapping can be parallelized
 ;; reduction can be parallelized (ops are associative)
-(defn calculate [sets-fn fields input]
-  (let [leaf-fn (sets-fn fields)]
-    (when (seq input)
-      (m/value (reduce m/<> (pmap leaf-fn input))))))
+(defn calculate
+  ([fields input]
+     (calculate (sets) fields input))
+  ([sets-fn fields input]
+     (let [leaf-fn (sets-fn fields)]
+       (when (seq input)
+         (m/value (reduce m/<> (pmap leaf-fn input)))))))
 
 (defn xget
   "Enables fetching of a value across multiple sets."
