@@ -39,6 +39,7 @@
   ([a b & cs] `(-!> (-!> ~a ~b) ~@cs)))
 
 
+;; !! Needs docstring.
 (defmacro defnmeta {:arglists (:arglists (meta #'defn))} [& args]
   (let [parsed (parsatron/run (f/parse-defn-like) args)
         attr-map (:attr-map parsed)

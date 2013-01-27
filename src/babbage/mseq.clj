@@ -1,5 +1,6 @@
 (ns babbage.mseq
-  (:require [babbage.monoid :as m]))
+  (:require [babbage.monoid :as m]
+            [clojure.algo.generic.functor :as f]))
 
 ;; A structure that carries around a count and a total and calculates
 ;; an mean based on them is, in combination with a zero-count
@@ -52,3 +53,9 @@
     (when-not (empty? ms)
       (let [v (m/value (first ms))]
         (reduce (fn [acc f] (f acc)) v (rest ms))))))
+
+(defmethod f/fmap MSeq [f mseq]
+  (let [ms (:ms mseq)]
+    (if (seq ms)
+      (MSeq. (list* (f/fmap f (first ms)) (rest ms)))
+      (MSeq. []))))

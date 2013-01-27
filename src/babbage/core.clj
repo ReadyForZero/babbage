@@ -1,13 +1,12 @@
 ;; Owner: wolfson@readyforzero.com
 ;; calculating interesting stats
 (ns babbage.core
-  (:require [babbage.dependent :as d]
-            [babbage.monoid :as m]
+  (:require [babbage.monoid :as m]
             [babbage.util :as util]
             [clojure.string :as str])
   (:use [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
-  (:refer-clojure :exclude [max min count set list complement]))
+  (:refer-clojure :exclude [complement]))
 
 (defn stats
   "Create a function for calculating groups of statistics.
@@ -65,18 +64,6 @@
   [fn-name monoidfn & {:keys [requires name doc]}]
   `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :requires ~requires :name ~name)
                    {:doc ~doc})))
-
-(defstatfn max m/max)
-(defstatfn min m/min)
-(defstatfn prod m/prod)
-(defstatfn sum m/sum)
-(defstatfn count (fn [x] (m/sum (if (nil? x) 0 1))))
-(defstatfn gaussian m/gaussian)
-(defstatfn mean d/mean :requires [count sum])
-(defstatfn list (fn [x] [x]))
-(defstatfn set (fn [x] #{x}))
-(defstatfn count-binned m/count-binned)
-(defstatfn count-unique d/count-unique :requires count-binned :name :unique)
 
 (defn by
    "Allows passing whole records to a stats function within a call to
@@ -158,26 +145,6 @@
     :key (apply map-with-key extractor field-name sfunc1 sfuncs)
     :value (apply map-with-value extractor field-name sfunc1 sfuncs)))
 
-
-(defn histogram [width]
-  (let [h (m/histogram width)]
-    (statfn histogram h)))
-
-(defstatfn vector-space m/vector-space
-  :doc "Keep all points in a vector space. This is unsampled, todo:
-        sampled version (that version could also keep track of the
-        unsampled max/min/mean).")
-
-(defstatfn pearson d/pearson :requires vector-space
-  :doc "Two pass version of pearson correlation for now, requires vector space.")
-
-(defconstrainedfn ratio
-  [of to & [ratio-name]]
-  [(keyword? of) (or (number? to) (keyword? to)) (or (nil? ratio-name) (keyword? ratio-name))]
-  (let [to-s (if (number? to) (str to) (name to))
-        key (or ratio-name (keyword (str (name of) "-to-" to-s)))]
-    (fn [m] (assoc m key (d/ratio of to)))))
-
 (defn sets
   "Describe subsets for which to calculate statistics.
 
@@ -224,6 +191,7 @@
 
 (defn intersection-name [& keys]
   (make-set-function-name "and" keys))
+
 (defn union-name [& keys]
   (make-set-function-name "or" keys))
 
