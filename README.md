@@ -38,20 +38,20 @@ Simply compute multiple measures in one pass.
 
 ;; Compute multiple measures over multiple fields in one pass.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
-     (calculate {:x (stats :x sum mean) 
-                 :y (stats :y mean)})) ;; <-- Here we're computing mean over :y also.
-{:all {:x {:count 3, :mean 2.0, :sum 6},
-       :y {:count 2, :mean 12.5, :sum 25}}}
+     (calculate {:x-result (stats :x sum mean) ;;
+                 :y-result (stats :y mean)})) ;; <-- Here we're computing mean over :y also.
+{:all {:x-result {:count 3, :mean 2.0, :sum 6},
+       :y-result {:count 2, :mean 12.5, :sum 25}}}
 
 ;; Provide your own extraction functions.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}] 
      (calculate 
-       {:x (stats :x sum mean) 
-        :y (stats :y mean) 
+       {:x-result (stats :x sum mean) 
+        :y-result (stats :y mean) 
         ;; Now accumulate the mean not of a field, but of a function we provide.
         :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})) 
-{:all {:x {:mean 2.0, :count 3, :sum 6}, 
-       :y {:mean 12.5, :sum 25, :count 2}, 
+{:all {:x-result {:mean 2.0, :count 3, :sum 6},
+       :y-result {:mean 12.5, :sum 25, :count 2},
        :both {:mean 7.75, :sum 31, :count 4}}}
 ```
 
@@ -68,15 +68,15 @@ Simply compute the same measures across multiple subsets. Still in one pass.
        (sets {:has-y #(-> % :y)}) ;; <-- Compute measures over just those 
                                   ;; elements that have y (in addition 
                                   ;; to all elements).
-         {:x (stats :x sum mean) 
-          :y (stats :y mean) 
+         {:x-result (stats :x sum mean) 
+          :y-result (stats :y mean) 
           :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)}))
 
-{:all   {:x {:mean 2.0, :count 3, :sum 6}, 
-         :y {:mean 12.5, :sum 25, :count 2}, 
+{:all   {:x-result {:mean 2.0, :count 3, :sum 6}, 
+         :y-result {:mean 12.5, :sum 25, :count 2}, 
          :both {:mean 7.75, :sum 31, :count 4}}, 
- :has-y {:x {:mean 1.0, :count 1, :sum 1}, 
-         :y {:mean 12.5, :sum 25, :count 2}, 
+ :has-y {:x-result {:mean 1.0, :count 1, :sum 1}, 
+         :y-result {:mean 12.5, :sum 25, :count 2}, 
          :both {:mean 13.0, :sum 26, :count 2}}}
 
 ```
