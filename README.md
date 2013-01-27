@@ -25,26 +25,28 @@ Simply compute multiple measures in one pass.
 
 ```clojure
 
+;; Simplest possible example, compute the sum of a seq.
 #> (->> [{:x 1} {:x 2}] 
      (calculate {:the-result (stats :x sum)}))
 {:all {:the-result {:sum 3}}} ;; :all refers to the result computed over all elements, not a subset.
 
+;; Compute multiple measures over the same field in one pass.
 #> (->> [{:x 1} {:x 2}] 
      (calculate {:the-result (stats :x sum mean)}))
 {:all {:the-result {:mean 1.5, :count 2, :sum 3}}}
 
+;; Compute multiple measures over multiple fields in one pass.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
      (calculate {:x (stats :x sum mean) 
                  :y (stats :y mean)}))
 {:all {:x {:count 3, :mean 2.0, :sum 6},
        :y {:count 2, :mean 12.5, :sum 25}}}
 
-;; Provide your own extraction functions:
-
+;; Provide your own extraction functions.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}] 
      (calculate {:x (stats :x sum mean) 
                  :y (stats :y mean) 
-                 :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)}))
+                 :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})) ;; The measures we accumulate here are not of a field, but of a function we provide.
 {:all {:x {:mean 2.0, :count 3, :sum 6}, 
        :y {:mean 12.5, :sum 25, :count 2}, 
        :both {:mean 7.75, :sum 31, :count 4}}}
@@ -56,6 +58,7 @@ Simply compute the same measures across multiple subsets. Still in one pass.
 
 ```clojure
 
+;; We take the previous example, and compute the same measures, but considering different subsets of elements.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}] 
      (calculate 
        (sets {:has-y #(-> % :y)}) ;; Compute measures over just those elements that have y (in addition to all elements).
