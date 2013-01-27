@@ -81,6 +81,18 @@ Simply compute the same measures across multiple subsets. Still in one pass.
 
 ```
 
+## Efficient computation of inputs
+
+TODO(bwo):
+
+You can specify functions to compute values that should be fed as
+input to the measure functions. These functions will be run as needed
+to provide the results.
+
+```clojure
+
+```
+
 ## License
 
 Copyright (c) ReadyForZero, Inc. All rights reserved.
