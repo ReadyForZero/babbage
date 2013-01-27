@@ -32,13 +32,13 @@ Simply compute multiple measures in one pass.
 
 ;; Compute multiple measures over the same field in one pass.
 #> (->> [{:x 1} {:x 2}] 
-     (calculate {:the-result (stats :x sum mean)}))
-{:all {:the-result {:mean 1.5, :count 2, :sum 3}}}
+     (calculate {:the-result (stats :x sum mean)})) ;; Here we've added the mean as well.
+{:all {:the-result {:mean 1.5, :count 2, :sum 3}}} ;; The 'count' measure is required by 'mean', so it's automatically added to the measures to compute.
 
 ;; Compute multiple measures over multiple fields in one pass.
 #> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
      (calculate {:x (stats :x sum mean) 
-                 :y (stats :y mean)}))
+                 :y (stats :y mean)})) ;; Here we're computing mean over :y also.
 {:all {:x {:count 3, :mean 2.0, :sum 6},
        :y {:count 2, :mean 12.5, :sum 25}}}
 
