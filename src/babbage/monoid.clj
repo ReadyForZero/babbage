@@ -35,10 +35,6 @@
 (def snd (monoid (fn [s o] o) nil))
 (def fst (monoid (fn [s o] s) nil))
 
-(defn dependence [dependent independents]
-  {:dependent (rows [dependent])
-   :independents (rows independents)})
-
 (defn count-binned [o]
   (if (nil? o) (sorted-map) (sorted-map o (sum 1))))
 
