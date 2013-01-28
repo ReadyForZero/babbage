@@ -45,8 +45,12 @@
   argument should contain the names of the functions that monoidfn
   expects already to have run.
 
+  If the function being defined is not parameterized, use defstatfn.
+  This macro is only necessary for creating functions on the fly: see
+  ratio and histogram in babbage.provided.core for examples.
+
   Functions that are more than just simple wrappers will probably not
-  be able to use this macro: see e.g. ratio or
+  be able to use this macro (or defstatfn): see e.g.
   map-{with-key,with-value,of}."
   [fn-name monoidfn & {:keys [requires name]}]
   (let [requires (cond (nil? requires) []
@@ -59,9 +63,9 @@
 (defmacro defstatfn
   "Define a function for computing statistics suitable for passing as
    an argument to stats. Same as statfn, except that def is used to
-   create a var holding the function, and there is an additional :doc
-   optional argument for supplying a docstring."
-  [fn-name monoidfn & {:keys [requires name doc]}]
+   create a top-level var holding the function, and there is an
+   additional :doc optional argument for supplying a docstring."
+   [fn-name monoidfn & {:keys [requires name doc]}]
   `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :requires ~requires :name ~name)
                    {:doc ~doc})))
 

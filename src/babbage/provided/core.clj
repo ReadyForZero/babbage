@@ -63,10 +63,10 @@
   [(keyword? of) (or (number? to) (keyword? to)) (or (nil? ratio-name) (keyword? ratio-name))]
   (let [to-s (if (number? to) (str to) (name to))
         key (or ratio-name (keyword (str (name of) "-to-" to-s)))]
-    (fn [m] (assoc m key (d-ratio of to)))))
+    (statfn ratio (d-ratio of to) :name key)))
 
 (defn histogram
   "Given a width, returns a function that results in a histogram, where buckets are of 'width' width."
   [width]
   (let [h (histogram/m-histogram width)]
-    (statfn histogram h))) ;; !! Need some guidelines of when to use statfn/defstatfn.
+    (statfn histogram h)))

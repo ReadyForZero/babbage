@@ -38,9 +38,13 @@
           )))
   ([a b & cs] `(-!> (-!> ~a ~b) ~@cs)))
 
-
-;; !! Needs docstring.
-(defmacro defnmeta {:arglists (:arglists (meta #'defn))} [& args]
+(defmacro defnmeta
+  "Exactly like defn, except that any metadata created in the optional
+   attr-map argument to defn will be placed on both the var and the
+   value. (Metadata created using the ^{...} reader syntax will only
+   be on the var.)"
+   {:arglists (:arglists (meta #'defn))}
+  [& args]
   (let [parsed (parsatron/run (f/parse-defn-like) args)
         attr-map (:attr-map parsed)
         name (:name parsed)]
@@ -135,13 +139,16 @@
                       (group-deps (set/union required (set (map :provides independent))) dependent))
               required]))))
 
-;; !! needs docstring
-(defn prepare-map [m]
+(defn prepare-map
+  "Create an MSeq structure out of a map of name/stat-fn key-value
+   pairs, so that functions that depend on prior results only get run
+   when requesting the final value."
+  [m]
   (if-not (map? m)
     m
     (when-let [nodes (seq (map (fn [[k v]] {:provides k
-                                            :requires (-> v meta :requires)
-                                            :value (prepare-map v)}) m))]
+                                           :requires (-> v meta :requires)
+                                           :value (prepare-map v)}) m))]
       (let [layers (layers nodes)
             m (->> (first layers) (map (juxt :provides :value)) (into {}))]
         (if (= 1 (clojure.core/count layers))
