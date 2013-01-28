@@ -47,8 +47,6 @@
 
 (defn- map-apply [default function-map argument-map]
   (cond
-   (nil? argument-map)
-   (recur default function-map (Pure. default))
    (and (pure? function-map) (pure? argument-map))
    (Pure. ((get function-map arb) (or (get argument-map arb) default)))
    (pure? function-map)
