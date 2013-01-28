@@ -2,26 +2,11 @@
 ;; calculating interesting stats
 (ns babbage.core
   (:require [babbage.monoid :as m]
-            [babbage.dependent :as d]
             [babbage.util :as util]
             [clojure.string :as str])
-  (:import babbage.dependent.MSeq)
-  (:use [trammel.core :only [defconstrainedfn]]
-        [clojure.algo.generic.functor :only [fmap]])
-  (:refer-clojure :exclude [max min count set list complement]))
-
-(defn prepare-map [m]
-  (if-not (map? m)
-    m
-    (when-let [nodes (seq (map (fn [[k v]] {:provides k
-                                           :requires (-> v meta :requires)
-                                           :value (prepare-map v)}) m))]
-      (let [layers (util/layers nodes)
-            m (->> (first layers) (map (juxt :provides :value)) (into {}))]
-        (if (= 1 (clojure.core/count layers))
-          (MSeq. (clojure.core/list m))
-          (let [groups (map util/transform-group (rest layers))]
-            (MSeq. (list* m groups))))))))
+  (:use [clojure.algo.generic.functor :only [fmap]]
+        [trammel.core :only [defconstrainedfn]])
+  (:refer-clojure :exclude [complement]))
 
 (defn stats
   "Create a function for calculating groups of statistics.
@@ -43,7 +28,7 @@
    It is not in general necessary to call the return value of this function directly."
   [extractor stat-func1 & stats-funcs]
   (let [m (reduce (fn [acc f] (f acc)) {} (cons stat-func1 stats-funcs))
-        m (prepare-map m)]
+        m (util/prepare-map m)]
     (fn [ent]
       (let [v (extractor ent)]
         (fmap (fn [f]
@@ -79,29 +64,6 @@
   [fn-name monoidfn & {:keys [requires name doc]}]
   `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :requires ~requires :name ~name)
                    {:doc ~doc})))
-
-(defstatfn max m/max)
-(defstatfn min m/min)
-(defstatfn prod m/prod)
-(defstatfn sum m/sum)
-(defstatfn count (fn [x] (m/sum (if (nil? x) 0 1))))
-(defstatfn gaussian m/gaussian)
-(defstatfn mean d/mean :requires [count sum])
-(defstatfn list (fn [x] [x]))
-(defstatfn set (fn [x] #{x}))
-(defstatfn count-binned m/count-binned)
-(defstatfn bin-histogram-plot d/bin-histogram-plot :requires count-binned)
-(defstatfn count-unique d/count-unique :requires count-binned :name :unique)
-
-(defn dependence [& independent-fns]
-  (fn [m]
-    (assoc m :dependence (with-meta
-                           (fn [ent v]
-                             (m/dependence v (map #(% ent) independent-fns)))
-                           {:whole-record true}))))
-
-(defn linreg [& independent-fns]
-  (statfn linreg d/linreg :requires (apply dependence independent-fns)))
 
 (defn by
    "Allows passing whole records to a stats function within a call to
@@ -183,33 +145,6 @@
     :key (apply map-with-key extractor field-name sfunc1 sfuncs)
     :value (apply map-with-value extractor field-name sfunc1 sfuncs)))
 
-
-(defn histogram [width]
-  (let [h (m/histogram width)]
-    (statfn histogram h)))
-
-(defn histogram-plot [width]
-  (statfn histogram-plot d/histogram-plot :requires (histogram width)))
-
-(defstatfn vector-space m/vector-space
-  :doc "Keep all points in a vector space. This is unsampled, todo:
-        sampled version (that version could also keep track of the
-        unsampled max/min/mean).")
-
-;; Todo: spearman, and single-pass pearson.
-(defstatfn pearson d/pearson :requires vector-space
-  :doc "Two pass version of pearson correlation for now, requires vector space.")
-
-(defstatfn scatter-plot d/scatter-plot :requires vector-space
-  :doc "Makes a plot of a vector space.")
-
-(defconstrainedfn ratio
-  [of to & [ratio-name]]
-  [(keyword? of) (or (number? to) (keyword? to)) (or (nil? ratio-name) (keyword? ratio-name))]
-  (let [to-s (if (number? to) (str to) (name to))
-        key (or ratio-name (keyword (str (name of) "-to-" to-s)))]
-    (fn [m] (assoc m key (d/ratio of to)))))
-
 (defn sets
   "Describe subsets for which to calculate statistics.
 
@@ -256,6 +191,7 @@
 
 (defn intersection-name [& keys]
   (make-set-function-name "and" keys))
+
 (defn union-name [& keys]
   (make-set-function-name "or" keys))
 

@@ -1,7 +1,8 @@
 (ns babbage.test.core
   (:refer-clojure :exclude [count set max list min complement])
   (:use [expectations]
-        [babbage.core]))
+        babbage.core
+        babbage.provided.core))
 
 (def values [{:v 1 :x 10 :low? true :status :good}
              {:v 4 :x 43 :low? false :status :good}

@@ -1,8 +1,10 @@
 (ns babbage.util
   (:require [babbage.monoid :as m]
+            babbage.mseq
+            [clojure.set :as set]
             [macroparser.functions :as f]
-            [the.parsatron :as parsatron]
-            [clojure.set :as set]))
+            [the.parsatron :as parsatron])
+  (:import babbage.mseq.MSeq))
 
 (defn stringify
   "Returns a string, writing out 'nil' if nil."
@@ -37,6 +39,7 @@
   ([a b & cs] `(-!> (-!> ~a ~b) ~@cs)))
 
 
+;; !! Needs docstring.
 (defmacro defnmeta {:arglists (:arglists (meta #'defn))} [& args]
   (let [parsed (parsatron/run (f/parse-defn-like) args)
         attr-map (:attr-map parsed)
@@ -47,9 +50,10 @@
 (defmacro fnmeta [meta & sigs]
   `(with-meta (fn ~@sigs) ~meta))
 
-;; returns nil if a cycle was encountered, otherwise pair of visited
-;; nodes, map of nodes to ancestors
-(defn dfs [f seen ancestors depmap]
+(defn dfs
+  "Returns nil if a cycle was encountered, otherwise pair of visited
+  nodes, map of nodes to ancestors."
+  [f seen ancestors depmap]
   (let [f-name (:provides f)
         seen (conj seen f-name)
         out (keep depmap (:requires f))]
@@ -130,3 +134,17 @@
              [(concat (when independent [independent])
                       (group-deps (set/union required (set (map :provides independent))) dependent))
               required]))))
+
+;; !! needs docstring
+(defn prepare-map [m]
+  (if-not (map? m)
+    m
+    (when-let [nodes (seq (map (fn [[k v]] {:provides k
+                                            :requires (-> v meta :requires)
+                                            :value (prepare-map v)}) m))]
+      (let [layers (layers nodes)
+            m (->> (first layers) (map (juxt :provides :value)) (into {}))]
+        (if (= 1 (clojure.core/count layers))
+          (MSeq. (clojure.core/list m))
+          (let [groups (map transform-group (rest layers))]
+            (MSeq. (list* m groups))))))))
