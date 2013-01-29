@@ -43,7 +43,7 @@
 
 ;; Keeping track of unique counts is dependent on keeping track of the seen ones.
 (defnmeta d-count-unique {:requires #{:count-binned}} [m]
-  (count (get m :count-binned)))
+  (.count (get m :count-binned)))
 
 (defstatfn count-unique d-count-unique :requires count-binned :name :unique)
 
