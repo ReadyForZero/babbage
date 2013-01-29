@@ -207,7 +207,7 @@ Measure functions that take arguments:
         be a keyword or a number. If <code>ratio-name</code> is
         provided, it must be a keyword; it will be used as the key in
         the result map for the ratio. Otherwise, <code>of</code> and
-        <code>to<code> will be used to create a key of the form
+        <code>to</code> will be used to create a key of the form
         <code>of</code>-to-<code>to</code>: E.g., <code>(ratio :max
         :min)</code> will use the key  <code>:max-to-min</code>.</td>
    </tr>
