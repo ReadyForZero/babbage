@@ -263,7 +263,7 @@ Measure functions that take no arguments:
         frequencies).</td>
     </tr>
     <tr>
-        <td><ode>count-unique</code></td>
+        <td><code>count-unique</code></td>
         <td>Count how many different values have occurred.</td>
     </tr>
 </table>
