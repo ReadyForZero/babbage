@@ -166,8 +166,98 @@ Predicate functions will only be called once per item in the input seq.
 
 ### Predefined measure functions 
 
-TODO describe the existing ones
+Several measure functions are predefined in `babbage.provided.core`:
 
+Measure functions that take no arguments:
+<table>
+    <tr>
+        <th>Name</th><th>Effect</th>
+    </tr>
+    <tr>
+        <td>`sum`, `prod`, `max`, `min`, `count`</td>
+        <td>Compute the sum, product, maximum, minimum, or count of
+        values.</td>
+    </tr>
+    <tr>
+        <td>`list`, `set`</td>
+        <td>Accumulate values in a list or a set.</td>
+    </tr>
+    <tr>
+        <td>mean</td>
+        <td>Compute the arithmetic mean of values.</td>
+    </tr>
+    <tr>
+        <td>`count-binned`</td>
+        <td>Count how often different values have occurred (like
+        `frequencies`).</td>
+    </tr>
+    <tr>
+        <td>`count-unique`</td>
+        <td>Count how many different values have occurred.</td>
+    </tr>
+</table>
+
+Measure functions that take arguments:
+<table>
+    <tr><th>Name></th><th>Arguments</th><th>Effect</th></tr>
+    <tr>
+        <td>`ratio`</td>
+        <td>`of`, `to`, `ratio-name` (optional)</td>
+        <td>Compute the ratio of `of` to `to`. `of` must be a keyword
+        naming a value that a measure function will place in the
+        result map; `to` can either be a keyword or a number. If
+        `ratio-name` is provided, it must be a keyword; it will be
+        used as the key in the result map for the ratio. Otherwise,
+        `of` and `to` will be used to create a key of the form
+        `of`-to-`to`: E.g., `(ratio :max :min)` will use the key
+        `:max-to-min`.</td>
+   </tr>
+   <tr>
+       <td>`histogram`</td>
+       <td>`width`</td>
+       <td>Compute a histogram whose buckets have width `width`.</td>
+   </tr>
+</table>
+
+Sometimes we will want to compute measures for multiple functions of
+the input *together*. However, in the call `(stats extractor-fn
+measure1 measure2 ...)`, all the measure functions receive the result
+of calling `extractor-fn` on an input item. While we could make the
+extractor function return sequences or maps, that would require
+modifying all the measure functions to further extract the right
+elements. To get around this, `babbage.core` exports three functions
+for making the whole item available within a `stats` call: `by`,
+`map-with-key`, and `map-with-value`. The interface to all these
+functions is similar to that for `stats`: the first argument is an
+extractor function, the second argument is the key to be used in the
+results map, and the remaining arguments are arbitrarily many measure
+functions. 
+
+Suppose your input is maps of the form `{:sale x, :user_id y :ts t}`,
+representing the amount x of a sale to user `y` at time `t`. You want
+to know the total and mean of the sales, and you also want to know how
+many individual users made purchases:
+
+```clojure
+user> (calculate (stats :sale mean sum (by :user_id :users count-unique))
+                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+                  {:sale 25 :user_id 1}])
+{:all {:mean 16.6, :users {:unique 3, :count-binned {1 3, 3 1, 4 1}}, :sum 83, :count 5}}
+```
+
+Or, you might want to know the means and total for each user's
+purchases:
+
+```clojure
+user> (calculate (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
+                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+                  {:sale 25 :user_id 1}])
+{:all {:mean 16.6, :user->sales {3 {:mean 13.0, :count 1, :sum 13}, 4 {:mean 20.0, :count 1, :sum 20}, 1 {:mean 16.666666666666668, :count 3, :sum 50}}, :sum 83, :count 5}}
+```
+
+    
 ### Defining new measure functions
 
 A measure function is built out of an underlying monoid, or a function
@@ -187,6 +277,40 @@ user> (defstatfn fst m-fst)
 user> (calculate (stats :x fst sum) [{:x nil} {:x 2} {:x 3} {:x 4}])
 {:all {:sum 9, :fst 2}}
 ```
+
+The `statfn` macro can be used to create an anonymous measure function
+that depends on runtime values: see `babbage.provided.core/histogram`
+and `babbage.provided.core/ratio` for examples.
+
+The `monoid` function takes a binary operation and a value that is a
+left and right identity when the operation has non-nil arguments (nil
+is special-cased to always be an identity) and returns a function that
+creates instances of `babbage.monoid/Monoid`. More complex measures
+can implement the protocol directly; see `babbage.monoid.gaussian` for
+an example.
+
+Measures that depend on already-computed measures (e.g. the ratio of
+one to another) are also a combination of an underlying function that
+does the actual computation and a public function that associates the
+measure with a name in a map. In this case, both functions declare
+their dependencies:
+
+```clojure
+;; Keeping track of unique counts is dependent on keeping track of the seen ones.
+;; "defnmeta" just associates the attr-map metadata with both the var and the function
+(defnmeta d-count-unique {:requires #{:count-binned}} [m]
+  (count (get m :count-binned)))
+  
+(defstatfn count-unique d-count-unique :requires count-binned :name :unique)
+```
+
+`d-count-unique` declares that it expects the result map it is passed
+to contain the `:count-binned` key. `count-unique` uses
+`d-count-unique` to compute its results, says that its result is named
+`:unique`, and requires the *function* `count-binned`. Using
+`count-unique` will result in `count-binned` being used as well. In
+this case, there is some redundancy in the declarations, because
+`count-unique`'s requirements are known statically.
 
 ## Efficient computation of inputs
 
@@ -232,6 +356,8 @@ Functions defined with `defgraphfn` can be invoked like ordinary
 Clojure functions defined with `defn` or `fn`, because that's what
 they are; the only difference is that the functions carry some
 metadata about their dependencies and their names around with them.
+Because of this, they can be wrapped by arbitrary other functions, as
+long as the metadata is appropriately transferred.
 
 When called with `run-graph` (or its variations), the graph function
 `mean` can refer to the results of the graph function `sum` simply by
