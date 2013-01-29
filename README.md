@@ -334,7 +334,7 @@ un-asterisked analogues if that is not possible.
 
 ### Predefined measure functions 
 
-Several measure functions are predefined in `babbage.provided.core`:
+Several measure functions are predefined in `babbage.provided.core`.
 
 Measure functions that take no arguments:
 <table>
@@ -367,7 +367,7 @@ Measure functions that take no arguments:
 
 Measure functions that take arguments:
 <table>
-    <tr><th>Name></th><th>Arguments</th><th>Effect</th></tr>
+    <tr><th>Name</th><th>Arguments</th><th>Effect</th></tr>
     <tr>
         <td><code>ratio</code></td>
         <td><code>of</code>, <code>to</code>, <code>ratio-name</code> (optional)</td>
