@@ -67,7 +67,7 @@
   (expect 1 (-> r :is-good :v :min))
 
   ;; mutually exclusive
-  (expect nil (:Sis-good-and-is-bad> with-subsets))
+  (expect nil (:Sis-good-and-is-badZ with-subsets))
 
   ;; exhaustive
   (expect (:all with-subsets) (:Sis-good-or-is-badZ with-subsets)))

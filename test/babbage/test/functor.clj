@@ -30,3 +30,22 @@
 ;; wrong arity
 (expect AssertionError (in-maps + 2 0 {:x 1}))
 (expect AssertionError (in-maps + 2 0 {:x 1} {:x 2} {:x 3}))
+
+;; all values nil --> nil result.
+(expect {:x {:z {:y 10}} :y {:x nil}}
+        (in-nested-maps 3 +
+                        2 0
+                        {:x {:z {:y 5}} :y {:x nil}}
+                        {:x {:z {:y 5}} :y {:x nil}}))
+
+(expect {:x {:z {:y 10}} :y nil}
+        (in-nested-maps 3 +
+                        2 0
+                        {:x {:z {:y 5}} :y nil}
+                        {:x {:z {:y 5}}}))
+
+(expect {:x {:z {:y 10}}}
+        (in-nested-maps 3 +
+                        2 0
+                        {:x {:z {:y 5}}}
+                        {:x {:z {:y 5}}}))
