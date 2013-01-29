@@ -124,7 +124,7 @@
 (defn- key->sym [k] (symbol (name k)))
 
 (defn- layer-elt-let-expr [elt]
-  [(:value elt) (if (seq? (:requires elt)) (mapv key->sym (:requires elt)) '())])
+  [(:value elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
 
 (defn- layer->let-row [layer-strat leaf-strat lazy? layer]
   (let [bounds (mapv (comp key->sym :provides) layer)
@@ -143,7 +143,7 @@
         layers (u/layers nodes)]
     `(let ~(vec (mapcat (partial layer->let-row layer-strat leaf-strat lazy?)
                         layers))
-       (wrap-when true derefmap/->DerefMap
+       (wrap-when ~lazy? derefmap/->DerefMap
                   (hash-map ~@(interleave (map :provides nodes)
                                           (map (comp key->sym :provides) nodes)))))))
 
