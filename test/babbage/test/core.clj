@@ -41,6 +41,10 @@
   (expect 10 (-> r :status-to-x :good :min))
   (expect 30.0 (-> r :status-to-x :bad :mean)))
 
+(let [r (:all (calculate (stats :v count (by #(when (= :good (:status %)) %) :good-status count)) values))]
+  (expect 6 (:count r))
+  (expect 4 (-> r :good-status :count)))
+
 (def fields {:v v-extrema
              :x (stats :x mean (histogram 10) count (ratio :max :mean) max)})
 
