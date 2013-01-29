@@ -252,7 +252,8 @@ Clojure functions defined with `defn` or `fn`, because that's what
 they are; the only difference is that the functions carry some
 metadata about their dependencies and their names around with them.
 Because of this, they can be wrapped by arbitrary other functions, as
-long as the metadata is appropriately transferred.
+long as the metadata is appropriately transferred. (See, for example,
+`track-calls` in `babbage.test.graph`.)
 
 When called with `run-graph` (or its variations), the graph function
 `mean` can refer to the results of the graph function `sum` simply by

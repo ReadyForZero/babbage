@@ -38,3 +38,33 @@
 
 ;; necessary intermediate fns not provided
 (expect Exception (run-graph {:xs [1 2 3 4]} sum variance count-xs))
+
+(let [expanded (macroexpand '(run-graph* {:xs [1 2 3 4]} sum mean mean2 sum-squared count-xs))]
+  (expect 'let* (first expanded)))
+
+(let [expanded (macroexpand '(run-graph* {:xs [1 2 3 4]}
+                                         sum mean mean2 sum-squared
+                                         (when true count-xs)))]
+  ;; can't expand into a let form because run-graph* is too stupid to
+  ;; know that (when true ...) == ...
+  (expect 'babbage.graph/run-graph-strategy (first expanded)))
+
+(expect (run-graph {:xs [1 2 3 4]} sum mean sum-squared mean2 count-xs)
+        (run-graph* {:xs [1 2 3 4]} sum mean sum-squared mean2 count-xs))
+
+(def called (atom #{}))
+(defn track-calls [graphfn]
+  (with-meta
+    (fn [& args]
+      (swap! called conj (-> graphfn meta :provides))
+      (apply graphfn args))
+    (meta graphfn)))
+
+(with-redefs [called (atom #{})]
+  (let [fns (map track-calls [sum mean mean2 sum-squared count-xs])
+        r (apply run-graph-strategy {:lazy? true} {:xs [1 2 3 4]} fns)]
+    (expect #{} @called)
+    (expect 2.5 (:mean r))
+    (expect #{:mean :sum :count} @called)
+    (expect 7.5 (:mean2 r))
+    (expect #{:mean :sum :count :mean2 :sum-squared} @called)))
