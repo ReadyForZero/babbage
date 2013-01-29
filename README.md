@@ -162,8 +162,6 @@ Predicate functions will only be called once per item in the input seq.
 
 ## Measure functions
 
-(this section & subsections necessary?)
-
 ### Predefined measure functions 
 
 Several measure functions are predefined in `babbage.provided.core`:
@@ -174,25 +172,25 @@ Measure functions that take no arguments:
         <th>Name</th><th>Effect</th>
     </tr>
     <tr>
-        <td>`sum`, `prod`, `max`, `min`, `count`</td>
+        <td><code>sum</code>, <code>prod</code>, <code>max</code>, <code>min</code>, <code>count</code></td>
         <td>Compute the sum, product, maximum, minimum, or count of
         values.</td>
     </tr>
     <tr>
-        <td>`list`, `set`</td>
+        <td><code>list</code>, <code>set</code></td>
         <td>Accumulate values in a list or a set.</td>
     </tr>
     <tr>
-        <td>mean</td>
+        <td><code>mean</code></td>
         <td>Compute the arithmetic mean of values.</td>
     </tr>
     <tr>
-        <td>`count-binned`</td>
+        <td><code>count-binned</code></td>
         <td>Count how often different values have occurred (like
-        `frequencies`).</td>
+        frequencies).</td>
     </tr>
     <tr>
-        <td>`count-unique`</td>
+        <td><ode>count-unique</code></td>
         <td>Count how many different values have occurred.</td>
     </tr>
 </table>
@@ -201,21 +199,21 @@ Measure functions that take arguments:
 <table>
     <tr><th>Name></th><th>Arguments</th><th>Effect</th></tr>
     <tr>
-        <td>`ratio`</td>
-        <td>`of`, `to`, `ratio-name` (optional)</td>
-        <td>Compute the ratio of `of` to `to`. `of` must be a keyword
+        <td>ratio</td>
+        <td><code>of<code>, <code>to</code>, <code>ratio-name</code> (optional)</td>
+        <td>Compute the ratio of <code>of</code> to <code>to<code>. <code>of</code> must be a keyword
         naming a value that a measure function will place in the
-        result map; `to` can either be a keyword or a number. If
-        `ratio-name` is provided, it must be a keyword; it will be
+        result map; to can either be a keyword or a number. If
+        <code>ratio-name</code> is provided, it must be a keyword; it will be
         used as the key in the result map for the ratio. Otherwise,
-        `of` and `to` will be used to create a key of the form
-        `of`-to-`to`: E.g., `(ratio :max :min)` will use the key
-        `:max-to-min`.</td>
+        <code>of</code> and <code>to<code> will be used to create a key of the form
+        <code>of</code>-to-<code>to</code>: E.g., <code>(ratio :max :min)</code> will use the key
+        <code>:max-to-min</code>.</td>
    </tr>
    <tr>
-       <td>`histogram`</td>
-       <td>`width`</td>
-       <td>Compute a histogram whose buckets have width `width`.</td>
+       <td><code>histogram</code></td>
+       <td><code>width</code></td>
+       <td>Compute a histogram whose buckets have width <code>width</code>.</td>
    </tr>
 </table>
 
