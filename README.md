@@ -90,6 +90,52 @@ user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
 
 Extraction functions will only be called once per item in the input seq.
 
+Sometimes we will want to compute measures for multiple functions of
+the input *together*. However, in the call `(stats extractor-fn
+measure1 measure2 ...)`, all the measure functions receive the result
+of calling `extractor-fn` on an input item. While we could make the
+extractor function return sequences or maps, that would require
+modifying all the measure functions to further extract the right
+elements. To get around this, `babbage.core` exports three functions
+for making the whole item available within a `stats` call: `by`,
+`map-with-key`, and `map-with-value`. The interface to all these
+functions is similar to that for `stats`: the first argument is an
+extractor function, the second argument is the key to be used in the
+results map, and the remaining arguments are arbitrarily many measure
+functions.
+
+Suppose your input is maps of the form `{:sale x, :user_id y :ts t}`,
+representing the amount x of a sale to user `y` at time `t`. You want
+to know the total and mean of the sales, and you also want to know how
+many individual users made purchases:
+
+```clojure
+user> (calculate (stats :sale mean sum (by :user_id :users count-unique))
+                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+                  {:sale 25 :user_id 1}])
+{:all {:mean 16.6, 
+       :users {:unique 3, :count-binned {1 3, 3 1, 4 1}}, 
+       :sum 83,
+       :count 5}}
+```
+
+Or, you might want to know the means and total for each user's
+purchases:
+
+```clojure
+user> (calculate (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
+                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+                  {:sale 25 :user_id 1}])
+{:all {:mean 16.6, 
+       :user->sales {3 {:mean 13.0, :count 1, :sum 13}, 
+                     4 {:mean 20.0, :count 1, :sum 20}, 
+                     1 {:mean 16.666666666666668, :count
+                     3, :sum 50}}, 
+       :sum 83, :count 5}}
+```
+
 ## Multiple subsets
 
 Simply compute the same measures across multiple subsets, in one pass.
@@ -226,12 +272,62 @@ an error in case of unavailable or circular dependencies, and
 otherwise runs the functions provided with the input provided. By
 default it runs its argument functions in parallel when possible, and
 evaluates the results strictly. `run-graph-strategy` can be used to
-force sequential evaluation, or lazy evaluation. `compile-graph` and
-`compile-graph-strategy` can be used to analyze the dependency graph
-once at run time, returning a function that can be called directly.
+force sequential evaluation, or lazy evaluation:
+
+```clojure
+user> (defgraphfn foo [a]
+        (println "in foo"))
+#'user/foo
+user> (defgraphfn foo [a]
+        (println "in foo")
+        (inc a))
+#'user/foo
+user> (defgraphfn bar [foo]
+        (println "in bar")
+        (* foo foo))
+#'user/bar
+user> (defgraphfn baz [foo]
+        (println "in baz")
+        (* foo 2))
+#'user/baz
+user> (defgraphfn quux [bar baz]
+        (println "in quux")
+        (- bar baz))
+#'user/quux
+user> (def _r (run-graph-strategy {:lazy? true} {:a 5} foo bar baz quux))
+#'user/_r
+user> (:baz _r)
+in foo
+in baz
+12
+user> (:baz _r)
+12
+user> (:quux _r)
+in bar
+in quux
+24
+```
+
+`compile-graph` and `compile-graph-strategy` can be used to analyze
+the dependency graph once at run time, returning a function that can
+be called directly:
+
+```clojure
+user> (def f (compile-graph foo bar baz quux))
+#'user/f
+user> (f {:a 5})
+in foo
+in bar
+in baz
+in quux
+{:quux 24, :baz 12, :bar 36, :foo 6, :a 5}
+user> 
+```
+
 `run-graph*` and `run-graph-strategy*` can be used to attempt to
 analyze the dependency graph at compile time, falling back to their
 un-asterisked analogues if that is not possible.
+
 
 ## Measure functions
 
@@ -290,52 +386,6 @@ Measure functions that take arguments:
        <td>Compute a histogram whose buckets have width <code>width</code>.</td>
    </tr>
 </table>
-
-Sometimes we will want to compute measures for multiple functions of
-the input *together*. However, in the call `(stats extractor-fn
-measure1 measure2 ...)`, all the measure functions receive the result
-of calling `extractor-fn` on an input item. While we could make the
-extractor function return sequences or maps, that would require
-modifying all the measure functions to further extract the right
-elements. To get around this, `babbage.core` exports three functions
-for making the whole item available within a `stats` call: `by`,
-`map-with-key`, and `map-with-value`. The interface to all these
-functions is similar to that for `stats`: the first argument is an
-extractor function, the second argument is the key to be used in the
-results map, and the remaining arguments are arbitrarily many measure
-functions. 
-
-Suppose your input is maps of the form `{:sale x, :user_id y :ts t}`,
-representing the amount x of a sale to user `y` at time `t`. You want
-to know the total and mean of the sales, and you also want to know how
-many individual users made purchases:
-
-```clojure
-user> (calculate (stats :sale mean sum (by :user_id :users count-unique))
-                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
-                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
-                  {:sale 25 :user_id 1}])
-{:all {:mean 16.6, 
-       :users {:unique 3, :count-binned {1 3, 3 1, 4 1}}, 
-       :sum 83,
-       :count 5}}
-```
-
-Or, you might want to know the means and total for each user's
-purchases:
-
-```clojure
-user> (calculate (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
-                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
-                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
-                  {:sale 25 :user_id 1}])
-{:all {:mean 16.6, 
-       :user->sales {3 {:mean 13.0, :count 1, :sum 13}, 
-                     4 {:mean 20.0, :count 1, :sum 20}, 
-                     1 {:mean 16.666666666666668, :count
-                     3, :sum 50}}, 
-       :sum 83, :count 5}}
-```
     
 ### Defining new measure functions
 
