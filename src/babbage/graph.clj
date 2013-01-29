@@ -111,7 +111,7 @@
    if lazy? is true, result values will be lazily computed: fetching a
    value from the map will cause it, and its (recursive) dependencies,
    to be computed and cached."
-  [initial-values options & nodes]
+  [options initial-values & nodes]
   (let [options (merge defaults options)
         initial-value-nodes (map mapentry->node initial-values)
         provider-nodes (map (fn [provider] (merge (node-meta provider) {:value provider}))
@@ -170,7 +170,7 @@
        (run-graph-strategy* i-values :default :default ...))
 
    run-graph-strategy* in this case will pick up the *outer* value of i-values."
-  [initial-values options & nodes]
+  [options initial-values & nodes]
   (if (and (good-map? initial-values)
            (good-map? options)
            (every? symbol? nodes))
@@ -183,12 +183,12 @@
   "Run the graph fns in \"nodes\", supplying them with initial values
    in \"initial-values\", a map. Uses default option values."
   [initial-values & nodes]
-  (apply run-graph-strategy initial-values defaults nodes))
+  (apply run-graph-strategy defaults initial-values nodes))
 
 (defmacro run-graph*
   "Like run-graph-strategy* but uses default values as in run-graph."
   [initial-values & nodes]
-  `(run-graph-strategy ~initial-values defaults ~@nodes))
+  `(run-graph-strategy defaults ~initial-values ~@nodes))
 
 (defn compile-graph-strat
   "Create a function from the graph functions in nodes. The resulting
@@ -198,7 +198,7 @@
   [& nodes]
   (let [[layers still-required] (u/layers-and-required (map (fn [n] (merge (meta n) {:value n}))
                                                             nodes))]
-    (fn [initial-values options]
+    (fn [options initial-values]
       (assert (set/subset? still-required (set (keys initial-values))))
       (let [initial-value-nodes (map mapentry->node initial-values)
             options (merge defaults options)
@@ -210,4 +210,4 @@
   [& nodes]
   (let [f (apply compile-graph-strat nodes)]
     (fn [initial-values]
-      (f initial-values defaults))))
+      (f defaults initial-values))))
