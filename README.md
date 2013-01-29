@@ -199,16 +199,17 @@ Measure functions that take arguments:
 <table>
     <tr><th>Name></th><th>Arguments</th><th>Effect</th></tr>
     <tr>
-        <td>ratio</td>
+        <td><code>ratio</ciode></td>
         <td><code>of<code>, <code>to</code>, <code>ratio-name</code> (optional)</td>
-        <td>Compute the ratio of <code>of</code> to <code>to<code>. <code>of</code> must be a keyword
-        naming a value that a measure function will place in the
-        result map; to can either be a keyword or a number. If
-        <code>ratio-name</code> is provided, it must be a keyword; it will be
-        used as the key in the result map for the ratio. Otherwise,
-        <code>of</code> and <code>to<code> will be used to create a key of the form
-        <code>of</code>-to-<code>to</code>: E.g., <code>(ratio :max :min)</code> will use the key
-        <code>:max-to-min</code>.</td>
+        <td>Compute the ratio of <code>of</code> to <code>to</code>.
+        <code>of</code> must be a keyword  naming a value that a
+        measure function will place in the result map; to can either
+        be a keyword or a number. If <code>ratio-name</code> is
+        provided, it must be a keyword; it will be used as the key in
+        the result map for the ratio. Otherwise, <code>of</code> and
+        <code>to<code> will be used to create a key of the form
+        <code>of</code>-to-<code>to</code>: E.g., <code>(ratio :max
+        :min)</code> will use the key  <code>:max-to-min</code>.</td>
    </tr>
    <tr>
        <td><code>histogram</code></td>
