@@ -188,9 +188,9 @@
 (defmacro run-graph*
   "Like run-graph-strategy* but uses default values as in run-graph."
   [initial-values & nodes]
-  `(run-graph-strategy defaults ~initial-values ~@nodes))
+  `(run-graph-strategy* defaults ~initial-values ~@nodes))
 
-(defn compile-graph-strat
+(defn compile-graph-strategy
   "Create a function from the graph functions in nodes. The resulting
    function accepts as its first argument map that must contain keys
    corresponding to all the parameters necessary to run the graph to
@@ -206,8 +206,8 @@
         (run-layers layer-strat leaf-strat lazy? (concat [initial-value-nodes] layers))))))
 
 (defn compile-graph
-  "Like compile-graph-strat, except the returned function does not accept an options map."
+  "Like compile-graph-strategy, except the returned function does not accept an options map."
   [& nodes]
-  (let [f (apply compile-graph-strat nodes)]
+  (let [f (apply compile-graph-strategy nodes)]
     (fn [initial-values]
       (f defaults initial-values))))
