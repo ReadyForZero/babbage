@@ -1,12 +1,7 @@
 babbage
 =======
 
-Intelligent accumulation of statistics over a seq
-
-Makes orthogonal:
-1) Determining input to measurement computation
-2) Specifying the measure
-3) Computing the measure across multiple subsets
+A library to create computation engines.
 
 ## Usage
 
@@ -19,18 +14,30 @@ Makes orthogonal:
     (:use babbage.core))
 ```
 
-The core interface is provided by the functions `stats`, `sets`, and
+## Introduction
+
+The basic interface is provided by the functions `stats`, `sets`, and
 `calculate`. 
 
 `stats` is used to declare the measures to calculate.
-
-`sets` is used to declare the subsets of the input over which the
-measures should be calculated.
 
 `calculate` is used to actually make the thing go: it takes an
 optional set specification as returned by `sets`, a measure
 specification as returned by `stats` (or a map whose values are such
 specifications), and a seq of inputs to calculate measures over.
+
+```clojure
+;; Calculate the sum of a seq of elements.
+user> (calculate
+        (stats identity sum) ;; A stat that's the sum of the elements.
+        [1 2 3 4])
+{:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
+```
+
+`sets` is used to declare the subsets of the input over which the
+measures should be calculated. More on that below (link).
+
+Also provided is a mechanism to perform efficient computation over directed graphs (link).
 
 ## Multiple stats
 
@@ -38,9 +45,10 @@ The `stats` function takes an *extraction function* as its first
 argument, and an arbitrary number of *measure functions* as its
 remaining arguments.
 
-In the simplest possible case, the extraction function is identity:
+In the simplest possible case, as we saw above, the extraction function is identity:
 
 ```clojure
+;; Calculate the sum of a seq of elements.
 user> (calculate (stats identity sum) [1 2 3 4])
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
@@ -49,7 +57,9 @@ Frequently we will want to both name the result, and perform some kind
 of operation on the elements of the input:
 
 ```clojure
-user> (calculate {:the-result (stats :x sum)} [{:x 1} {:x 2}])
+user> (calculate 
+        {:the-result (stats :x sum)} ;; Compute the sum over :x's. Call it ":the-result".
+        [{:x 1} {:x 2}])
 {:all {:the-result {:sum 3}}} 
 ```
 
@@ -451,3 +461,9 @@ The use and distribution terms for this software are covered by the Eclipse Publ
 ## Contributors
 
 [Ben Wolfson](http://github.com/bwo) (wolfson@readyforzero.com)
+
+<hr>
+
+<small>
+At each increase of knowledge, as well as on the contrivance of every new tool, human labour becomes abridged. -- Charles Babbage
+</small>
