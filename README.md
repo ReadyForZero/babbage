@@ -19,10 +19,10 @@ A library to create computation engines.
 The basic interface is provided by the functions `stats`, `sets`, and
 `calculate`. 
 
-`stats` is used to declare the measures to calculate.
+`stats` is used to [declare the measures](#stats) to calculate.
 
-`sets` is used to declare the subsets of the input over which the
-measures should be calculated. More on that below (link).
+`sets` is used to [declare the subsets](#sets) of the input over which the
+measures should be calculated.
 
 `calculate` is used to actually make the thing go: it takes an
 optional set specification as returned by `sets`, a measure
@@ -31,15 +31,16 @@ specifications), and a seq of inputs to calculate measures over.
 
 ```clojure
 ;; Calculate the sum of a seq of elements.
+user> (require '[babbage.provided.core :as b])
 user> (calculate
-        (stats identity sum) ;; A stat that's the sum of the elements.
+        (stats identity b/sum) ;; A stat that's the sum of the elements.
         [1 2 3 4])
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
 
-Also provided is a mechanism to perform efficient computation over directed graphs (link).
+Also provided is a mechanism to perform [efficient computation over directed graphs](#graphs).
 
-## Multiple stats
+## Multiple stats <a id="stats"></a>
 
 The `stats` function takes an *extraction function* as its first
 argument, and an arbitrary number of *measure functions* as its
@@ -49,7 +50,7 @@ In the simplest possible case, as we saw above, the extraction function is ident
 
 ```clojure
 ;; Calculate the sum of a seq of elements.
-user> (calculate (stats identity sum) [1 2 3 4])
+user> (calculate (stats identity b/sum) [1 2 3 4])
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
 
@@ -58,7 +59,7 @@ of operation on the elements of the input:
 
 ```clojure
 user> (calculate 
-        {:the-result (stats :x sum)} ;; Compute the sum over :x's. Call it ":the-result".
+        {:the-result (stats :x b/sum)} ;; Compute the sum over :x's. Call it ":the-result".
         [{:x 1} {:x 2}])
 {:all {:the-result {:sum 3}}} 
 ```
@@ -67,7 +68,7 @@ Multiple measures can be computed in one pass:
 
 ```clojure
 user> (->> [{:x 1} {:x 2}] 
-     (calculate {:the-result (stats :x sum mean)})) ;; <-- Here we've added the mean as well.
+     (calculate {:the-result (stats :x b/sum b/mean)})) ;; <-- Here we've added the mean as well.
 {:all {:the-result {:mean 1.5, :count 2, :sum 3}}} ;; The 'count' measure is required by 'mean', 
                                                    ;; so it's automatically computed.
 ```
@@ -77,8 +78,8 @@ And we can compute multiple measures over multiple fields in one pass:
 ```clojure
 ;; Compute multiple measures over multiple fields in one pass.
 user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
-     (calculate {:x-result (stats :x sum mean) ;;
-                 :y-result (stats :y mean)})) ;; <-- Here we're computing mean over :y also.
+     (calculate {:x-result (stats :x b/sum b/mean) ;;
+                 :y-result (stats :y b/mean)})) ;; <-- Here we're computing mean over :y also.
 {:all {:x-result {:count 3, :mean 2.0, :sum 6},
        :y-result {:count 2, :mean 12.5, :sum 25}}}
 ```
@@ -120,7 +121,7 @@ to know the total and mean of the sales, and you also want to know how
 many individual users made purchases:
 
 ```clojure
-user> (calculate (stats :sale mean sum (by :user_id :users count-unique))
+user> (calculate (stats :sale b/mean b/sum (by :user_id :users b/count-unique))
                  [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
                   {:sale 15 :user_id 1} {:sale 13 :user_id 3}
                   {:sale 25 :user_id 1}])
@@ -134,7 +135,7 @@ Or, you might want to know the means and total for each user's
 purchases:
 
 ```clojure
-user> (calculate (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
+user> (calculate (stats :sale b/mean b/sum (map-with-key :user_id :user->sales b/mean b/sum))
                  [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
                   {:sale 15 :user_id 1} {:sale 13 :user_id 3}
                   {:sale 25 :user_id 1}])
@@ -146,7 +147,7 @@ user> (calculate (stats :sale mean sum (map-with-key :user_id :user->sales mean 
        :sum 83, :count 5}}
 ```
 
-## Multiple subsets
+## Multiple subsets <a id="sets"></a>
 
 Simply compute the same measures across multiple subsets, in one pass.
 
@@ -162,9 +163,9 @@ user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
        (sets {:has-y #(-> % :y)}) ;; <-- Compute measures over just those 
                                   ;; elements that have y (in addition 
                                   ;; to all elements).
-         {:x-result (stats :x sum mean) 
-          :y-result (stats :y mean) 
-          :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)}))
+         {:x-result (stats :x b/sum b/mean) 
+          :y-result (stats :y b/mean) 
+          :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) b/mean)}))
 {:all   {:x-result {:mean 2.0, :count 3, :sum 6}, 
          :y-result {:mean 12.5, :sum 25, :count 2}, 
          :both {:mean 7.75, :sum 31, :count 4}}, 
@@ -186,9 +187,9 @@ user> (def my-sets (-> (sets {:has-y :y
                     (intersections :has-y
                                    [:good :not-good])))                                   
 #'user/my-sets
-user> (def my-fields {:x-result (stats :x sum mean)
-                      :y-result (stats :y mean)
-                      :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})
+user> (def my-fields {:x-result (stats :x b/sum b/mean)
+                      :y-result (stats :y b/mean)
+                      :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) b/mean)})
 #'user/my-fields
 user> (calculate my-sets my-fields [{:x 1 :good? true :y 4}
                                     {:x 4 :good? false}
@@ -217,7 +218,7 @@ user> (calculate my-sets my-fields [{:x 1 :good? true :y 4}
 Predicate functions will only be called once per item in the input seq.
 
 
-## Efficient computation of inputs
+## Efficient computation of inputs <a id="graphs"></a>
 
 When calculating nontrivial measures over real data, we will often
 want to do some transformation of the data to make it tractable, or at
