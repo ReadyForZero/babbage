@@ -21,6 +21,9 @@ The basic interface is provided by the functions `stats`, `sets`, and
 
 `stats` is used to declare the measures to calculate.
 
+`sets` is used to declare the subsets of the input over which the
+measures should be calculated. More on that below (link).
+
 `calculate` is used to actually make the thing go: it takes an
 optional set specification as returned by `sets`, a measure
 specification as returned by `stats` (or a map whose values are such
@@ -33,9 +36,6 @@ user> (calculate
         [1 2 3 4])
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
-
-`sets` is used to declare the subsets of the input over which the
-measures should be calculated. More on that below (link).
 
 Also provided is a mechanism to perform efficient computation over directed graphs (link).
 
