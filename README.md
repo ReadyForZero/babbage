@@ -19,9 +19,9 @@ A library to create computation engines.
 The basic interface is provided by the functions `stats`, `sets`, and
 `calculate`. 
 
-`stats` is used to [declare the measures](#stats) to calculate.
+`stats` is used to [declare the measures](#multiple-stats-) to calculate.
 
-`sets` is used to [declare the subsets](#sets) of the input over which the
+`sets` is used to [declare the subsets](#multiple-subsets-) of the input over which the
 measures should be calculated.
 
 `calculate` is used to actually make the thing go: it takes an
@@ -38,9 +38,9 @@ user> (calculate
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
 
-Also provided is a mechanism to perform [efficient computation over directed graphs](#graphs).
+Also provided is a mechanism to perform [efficient computation over directed graphs](#efficient-computation-of-inputs-).
 
-## Multiple stats <a id="stats"></a>
+## Multiple stats
 
 The `stats` function takes an *extraction function* as its first
 argument, and an arbitrary number of *measure functions* as its
@@ -147,7 +147,7 @@ user> (calculate (stats :sale b/mean b/sum (map-with-key :user_id :user->sales b
        :sum 83, :count 5}}
 ```
 
-## Multiple subsets <a id="sets"></a>
+## Multiple subsets
 
 Simply compute the same measures across multiple subsets, in one pass.
 
@@ -218,7 +218,7 @@ user> (calculate my-sets my-fields [{:x 1 :good? true :y 4}
 Predicate functions will only be called once per item in the input seq.
 
 
-## Efficient computation of inputs <a id="graphs"></a>
+## Efficient computation of inputs
 
 When calculating nontrivial measures over real data, we will often
 want to do some transformation of the data to make it tractable, or at
