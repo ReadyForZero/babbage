@@ -19,9 +19,9 @@ A library to create computation engines.
 The basic interface is provided by the functions `stats`, `sets`, and
 `calculate`. 
 
-`stats` is used to [declare the measures](#multiple-stats-) to calculate.
+`stats` is used to [declare the measures](#multiple-stats) to calculate.
 
-`sets` is used to [declare the subsets](#multiple-subsets-) of the input over which the
+`sets` is used to [declare the subsets](#multiple-subsets) of the input over which the
 measures should be calculated.
 
 `calculate` is used to actually make the thing go: it takes an
@@ -38,7 +38,7 @@ user> (calculate
 {:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
 ```
 
-Also provided is a mechanism to perform [efficient computation over directed graphs](#efficient-computation-of-inputs-).
+Also provided is a mechanism to perform [efficient computation over directed graphs](#efficient-computation-of-inputs).
 
 ## Multiple stats
 
