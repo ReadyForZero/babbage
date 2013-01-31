@@ -10,4 +10,4 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo
             :comments "same as Clojure"}
-  :description "Intelligent accumulation of statistics over a seq")
+  :description "A library to create computation engines.")
