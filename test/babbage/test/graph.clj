@@ -68,3 +68,26 @@
     (expect #{:mean :sum :count} @called)
     (expect 7.5 (:mean2 r))
     (expect #{:mean :sum :count :mean2 :sum-squared} @called)))
+
+
+;; multiple arities are not allowed, also how else can you test this
+;; in expectations?
+(try
+  (macroexpand '(defgraphfn foo ([a] a) ([a b] (+ a b))))
+  (expect false)
+  (catch AssertionError a (expect true)))
+;; but each way of specifying a single arity is allowed:
+(defgraphfn foo ([a] a))
+(defgraphfn foo* [a] a)
+
+;; :as-less top-level destructuring doesn't work
+(try (macroexpand '(defgraphfn foo [{:keys [a b c]}]))
+     (expect false)
+     (catch AssertionError a (expect true)))
+(try (macroexpand '(defgraphfn foo [[a b c]]))
+     (expect false)
+     (catch AssertionError a (expect true)))
+;; :as-ful top-level destructuring does work, even with nested
+;; :as-less destructuring
+(defgraphfn bar [{:keys [a b c] :as d}] d)
+(defgraphfn bar [[a {:keys [b c]} :as d]] d)
