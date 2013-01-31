@@ -50,7 +50,7 @@ In the simplest possible case, as we saw above, the extraction function is ident
 ```clojure
 ;; Calculate the sum of a seq of elements.
 user> (calculate (stats identity b/sum) [1 2 3 4])
-{:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
+{:all {:sum 10}}                                   ;; The sum of all elements is 10.
 ```
 
 Frequently we will want to both name the result, and perform some kind
@@ -59,7 +59,7 @@ of operation on the elements of the input:
 ```clojure
 ;; Calculate the sum over a seq of elements with an extraction function.
 user> (calculate 
-        {:the-result (stats :x b/sum)} ;; Compute the sum over :x's. Call it ":the-result".
+        {:the-result (stats :x b/sum)}             ;; Compute the sum over :x's. Call it ":the-result".
         [{:x 1} {:x 2}])
 {:all {:the-result {:sum 3}}}
 ```
@@ -83,7 +83,7 @@ And we can compute multiple measures over multiple fields in one pass:
 ;; Compute multiple measures over multiple fields in one pass.
 user> (calculate 
         {:x-result (stats :x b/sum b/mean)
-         :y-result (stats :y b/mean)}          ;; Add mean for :y's, call it :y-result.
+         :y-result (stats :y b/mean)}              ;; Add mean for :y's, call it :y-result.
         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
 {:all {:x-result {:count 3, :mean 2.0,  :sum 6},
        :y-result {:count 2, :mean 12.5, :sum 25}}}
