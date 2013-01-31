@@ -6,28 +6,24 @@ A library to create computation engines.
 ## Usage
 
 ```clojure
-[babbage "0.1.0"]
+[babbage "0.1.0"] ;; In your project.clj
 
-;; In your ns statement:
+(:use babbage.core) ;; Core functions.
 
-(ns my.ns 
-    (:use babbage.core))
+(:require [babbage.provided.core :as b]) ;; Some basic provided statistics.
 ```
 
 ## Introduction
 
-The basic interface is provided by the functions `stats`, `sets`, and
-`calculate`. 
+The basic interface, which performs aggregations and partitions over seqs, is
+provided by the functions `stats`, `sets`, and `calculate`.
 
 `stats` is used to [declare the measures](#multiple-stats) to calculate.
 
 `sets` is used to [declare the subsets](#multiple-subsets) of the input over which the
 measures should be calculated.
 
-`calculate` is used to actually make the thing go: it takes an
-optional set specification as returned by `sets`, a measure
-specification as returned by `stats` (or a map whose values are such
-specifications), and a seq of inputs to calculate measures over.
+`calculate` takes these two as arguments (`sets` is optional), and makes the computation run over the provided seq.
 
 ```clojure
 ;; Calculate the sum of a seq of elements.
@@ -35,12 +31,15 @@ user> (require '[babbage.provided.core :as b])
 user> (calculate
         (stats identity b/sum) ;; A stat that's the sum of the elements.
         [1 2 3 4])
-{:all {:sum 10}} ;; :all refers to the result computed over all elements, not a subset
+{:all {:sum 10}} ;; The sum of all elements is 10.
 ```
 
-Also provided is a mechanism to perform [efficient computation over directed graphs](#efficient-computation-of-inputs).
+<b>babbage</b> also provides a mechanism to perform [efficient
+computation over directed graphs](#efficient-computation-of-inputs),
+using the functions `defgraphfn` to define a unit of work and it's
+dependencies, and `run-graph` to execute the computation of a graph.
 
-## Multiple stats
+## Using measure functions
 
 The `stats` function takes an *extraction function* as its first
 argument, and an arbitrary number of *measure functions* as its
@@ -58,18 +57,21 @@ Frequently we will want to both name the result, and perform some kind
 of operation on the elements of the input:
 
 ```clojure
+;; Calculate the sum over a seq of elements with an extraction function.
 user> (calculate 
         {:the-result (stats :x b/sum)} ;; Compute the sum over :x's. Call it ":the-result".
         [{:x 1} {:x 2}])
-{:all {:the-result {:sum 3}}} 
+{:all {:the-result {:sum 3}}}
 ```
 
 Multiple measures can be computed in one pass:
 
 ```clojure
-user> (->> [{:x 1} {:x 2}] 
-     (calculate {:the-result (stats :x b/sum b/mean)})) ;; <-- Here we've added the mean as well.
-{:all {:the-result {:mean 1.5, :count 2, :sum 3}}} ;; The 'count' measure is required by 'mean', 
+;; Compute the mean and sum of :x's.
+user> (calculate 
+        {:the-result (stats :x b/sum b/mean)}      ;; Add the mean.
+        [{:x 1} {:x 2}])
+{:all {:the-result {:mean 1.5, :count 2, :sum 3}}} ;; The 'count' measure is required by 'mean',
                                                    ;; so it's automatically computed.
 ```
 
@@ -77,10 +79,11 @@ And we can compute multiple measures over multiple fields in one pass:
 
 ```clojure
 ;; Compute multiple measures over multiple fields in one pass.
-user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
-     (calculate {:x-result (stats :x b/sum b/mean) ;;
-                 :y-result (stats :y b/mean)})) ;; <-- Here we're computing mean over :y also.
-{:all {:x-result {:count 3, :mean 2.0, :sum 6},
+user> (calculate 
+        {:x-result (stats :x b/sum b/mean)
+         :y-result (stats :y b/mean)}          ;; Add mean for :y's, call it :y-result.
+        [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
+{:all {:x-result {:count 3, :mean 2.0,  :sum 6},
        :y-result {:count 2, :mean 12.5, :sum 25}}}
 ```
 
@@ -88,18 +91,18 @@ user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]
 their inputs:
 
 ```clojure
-user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}] 
-     (calculate 
-       {:x-result (stats :x sum mean) 
-        :y-result (stats :y mean) 
-        ;; Now accumulate the mean not of a field, but of a function we provide.
-        :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})) 
-{:all {:x-result {:mean 2.0, :count 3, :sum 6},
-       :y-result {:mean 12.5, :sum 25, :count 2},
-       :both {:mean 7.75, :sum 31, :count 4}}}
+;; Accumulate the mean over the sum of the two fields.
+user> (calculate 
+        {:both (stats #(+ (or (:x %) 0) 
+                          (or (:y %) 0))
+                      mean)}
+        [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
+{:all {:both {:count 4, :mean 7.75, :sum 31}}}
 ```
 
 Extraction functions will only be called once per item in the input seq.
+
+## Structured measure functions
 
 Sometimes we will want to compute measures for multiple functions of
 the input *together*. However, in the call `(stats extractor-fn
@@ -121,12 +124,14 @@ to know the total and mean of the sales, and you also want to know how
 many individual users made purchases:
 
 ```clojure
-user> (calculate (stats :sale b/mean b/sum (by :user_id :users b/count-unique))
-                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
-                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
-                  {:sale 25 :user_id 1}])
+;; Given a list of sale/user-id pairs, compute unique users.
+user> (calculate 
+        (stats :sale b/mean b/sum (by :user_id :users b/count-unique))
+        [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+         {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+         {:sale 25 :user_id 1}])
 {:all {:mean 16.6, 
-       :users {:unique 3, :count-binned {1 3, 3 1, 4 1}}, 
+       :users {:unique 3, :count-binned {1 3, 3 1, 4 1}}, ;; "count-unique" depends on "count-binned".
        :sum 83,
        :count 5}}
 ```
@@ -135,19 +140,21 @@ Or, you might want to know the means and total for each user's
 purchases:
 
 ```clojure
-user> (calculate (stats :sale b/mean b/sum (map-with-key :user_id :user->sales b/mean b/sum))
-                 [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
-                  {:sale 15 :user_id 1} {:sale 13 :user_id 3}
-                  {:sale 25 :user_id 1}])
+;; Given a list of sale/user-id pairs, compute measures for each user's sales.
+user> (calculate 
+        (stats :sale b/mean b/sum (map-with-key :user_id :user->sales b/mean b/sum))
+        [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+         {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+         {:sale 25 :user_id 1}])
 {:all {:mean 16.6, 
        :user->sales {3 {:mean 13.0, :count 1, :sum 13}, 
                      4 {:mean 20.0, :count 1, :sum 20}, 
-                     1 {:mean 16.666666666666668, :count
-                     3, :sum 50}}, 
-       :sum 83, :count 5}}
+                     1 {:mean 16.6, :count 3, :sum 50}},
+       :sum 83, 
+       :count 5}}
 ```
 
-## Multiple subsets
+## Computation across subsets
 
 Simply compute the same measures across multiple subsets, in one pass.
 
@@ -158,27 +165,21 @@ seq belongs in the set:
 ```clojure
 ;; We take the previous example, and compute the same measures, but 
 ;; considering different subsets of elements.
-user> (->> [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}] 
-     (calculate 
-       (sets {:has-y #(-> % :y)}) ;; <-- Compute measures over just those 
-                                  ;; elements that have y (in addition 
-                                  ;; to all elements).
-         {:x-result (stats :x b/sum b/mean) 
-          :y-result (stats :y b/mean) 
-          :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) b/mean)}))
-{:all   {:x-result {:mean 2.0, :count 3, :sum 6}, 
-         :y-result {:mean 12.5, :sum 25, :count 2}, 
-         :both {:mean 7.75, :sum 31, :count 4}}, 
- :has-y {:x-result {:mean 1.0, :count 1, :sum 1}, 
-         :y-result {:mean 12.5, :sum 25, :count 2}, 
-         :both {:mean 13.0, :sum 26, :count 2}}}
+user> (calculate 
+        (sets {:has-y :y})                       ;; Compute measures over elements with :y.
+          {:both (stats #(+ (or (:x %) 0) 
+                            (or (:y %) 0)) 
+                        b/mean)}
+          [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
+{:all   {:both {:mean 7.75, :sum 31, :count 4}}, ;; We always compute over all.
+ :has-y {:both {:mean 13.0, :sum 26, :count 2}}} ;; Only two elements in the seq had y.
 ```
 
 Given an initial predicate map, arbitrary complements, intersections,
 and unions can be taken:
 
 ```clojure
-;; More complex set operations:
+;; More complex set operations: 
 user> (def my-sets (-> (sets {:has-y :y
                            :good :good?})
                     ;; add a set called :not-good
