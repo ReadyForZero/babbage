@@ -36,7 +36,7 @@ user> (calculate
 
 <b>babbage</b> also provides a mechanism to perform [efficient
 computation over directed graphs](#efficient-computation-of-inputs),
-using the functions `defgraphfn` to define a unit of work and it's
+using the functions `defgraphfn` to define a unit of work and its
 dependencies, and `run-graph` to execute the computation of a graph.
 
 ## Using measure functions
