@@ -108,9 +108,10 @@
 
 (defn node-meta [node]
   (let [{:keys [provides requires] :as m} (meta node)]
-    (when (or (not (keyword? provides))
-              (not-every? keyword requires))
+    (when (not (keyword? provides))
       (throw (Exception. (str "Node lacks provides metadata: " node (meta node)))))
+    (when (not (every? keyword? requires))
+      (throw (Exception. (str "Node has invalid requires metadata: " node (meta node)))))
     m))
 
 (defn run-graph-strategy
