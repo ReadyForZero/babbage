@@ -18,9 +18,9 @@ A library to create computation engines.
 The basic interface, which performs aggregations and partitions over seqs, is
 provided by the functions `stats`, `sets`, and `calculate`.
 
-`stats` is used to [declare the measures](#multiple-stats) to calculate.
+`stats` is used to [declare the measures](#using-measure-functions) to calculate.
 
-`sets` is used to [declare the subsets](#multiple-subsets) of the input over which the
+`sets` is used to [declare the subsets](#structured-measure-functions) of the input over which the
 measures should be calculated.
 
 `calculate` takes these two as arguments (`sets` is optional), and makes the computation run over the provided seq.
