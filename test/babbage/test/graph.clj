@@ -90,4 +90,6 @@
 ;; :as-ful top-level destructuring does work, even with nested
 ;; :as-less destructuring
 (defgraphfn bar [{:keys [a b c] :as d}] d)
-(defgraphfn bar [[a {:keys [b c]} :as d]] d)
+(expect [:d] (-> bar meta :requires))
+(defgraphfn bar* [[a {:keys [b c]} :as d]] d)
+(expect [:d] (-> bar* meta :requires))
