@@ -30,7 +30,31 @@
    corresponding to the function name, and a :requires key
    corresponding to the names of its arguments.
 
-   N.B. Neither multiple arities nor argument destructuring is currently supported."
+   The syntax of defgraphfn is almost identical to that of defn. The
+   differences are as follows:
+
+   - an optional keyword can follow the function name. If provided,
+     that keyword will be the key used in the result map for this
+     function, and other graph functions can access this function's
+     output using the name of that keyword. This allows multiple
+     functions to act as the same node in a graph.
+
+   - multiple arities are not allowed, though both
+       (defgraphfn foo [args] body)
+     and
+       (defgraphfn foo ([args] body))
+     are allowed.
+
+   - in the argument vector, destructuring of the top-level arguments
+     is only allowed with :as parameters. This is allowed:
+       (defgraphfn foo [[a {f :g} :as c] {:keys [x y] :as z}] body)
+     because each of the two arguments to foo can be identified with a
+     single name (c and z respectively), and those names can be
+     considered its dependencies. (The second element of c can be
+     destructured without an :as because it is not a direct dependency
+     of foo.) This is not allowed:
+       (defgraphfn bar [[a {f :g}] {:keys [x y]}] body)
+     because there is no way to tell what the dependencies of bar are."
   {:arglists '(name provides? docstring? attr-map? params & body)}
   [& args]
   (let [parsed (parsatron/run (parse-defgraphfn) args)

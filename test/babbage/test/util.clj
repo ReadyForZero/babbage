@@ -2,6 +2,9 @@
   (:use babbage.util
         expectations))
 
+(defnmeta test-with-metadata {:x 4} [a b c] (+ a b c))
+(expect 4 (-> test-with-metadata meta :x))
+
 ;; requires something not provided
 (expect Exception (layers [{:requires '(a) :provides 'b}]))
 

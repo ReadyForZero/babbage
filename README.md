@@ -18,16 +18,15 @@ A library to create computation engines.
 The basic interface, which performs aggregations and partitions over seqs, is
 provided by the functions `stats`, `sets`, and `calculate`.
 
-`stats` is used to [declare the measures](#multiple-stats) to calculate.
+`stats` is used to [declare the measures](#using-measure-functions) to calculate.
 
-`sets` is used to [declare the subsets](#multiple-subsets) of the input over which the
+`sets` is used to [declare the subsets](#structured-measure-functions) of the input over which the
 measures should be calculated.
 
 `calculate` takes these two as arguments (`sets` is optional), and makes the computation run over the provided seq.
 
 ```clojure
 ;; Calculate the sum of a seq of elements.
-user> (require '[babbage.provided.core :as b])
 user> (calculate
         (stats identity b/sum) ;; A stat that's the sum of the elements.
         [1 2 3 4])
@@ -36,7 +35,7 @@ user> (calculate
 
 <b>babbage</b> also provides a mechanism to perform [efficient
 computation over directed graphs](#efficient-computation-of-inputs),
-using the functions `defgraphfn` to define a unit of work and it's
+using the functions `defgraphfn` to define a unit of work and its
 dependencies, and `run-graph` to execute the computation of a graph.
 
 ## Using measure functions
@@ -97,7 +96,7 @@ their inputs:
 user> (calculate 
         {:both (stats #(+ (or (:x %) 0)            ;; Compute the mean of this function on each element.
                           (or (:y %) 0))
-                      mean)}
+                      b/mean)}
         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
 {:all {:both {:count 4, :mean 7.75, :sum 31}}}
 ```
