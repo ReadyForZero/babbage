@@ -69,7 +69,7 @@ Multiple measures can be computed in one pass:
 ```clojure
 ;; Compute the mean and sum of :x's.
 user> (calculate 
-        {:the-result (stats :x b/sum b/mean)}      ;; Add the mean.
+        {:the-result (stats :x b/sum b/mean)}      ;; Compute the mean and sum of :x's.
         [{:x 1} {:x 2}])
 {:all {:the-result {:mean 1.5, :count 2, :sum 3}}} ;; The 'count' measure is required by 'mean',
                                                    ;; so it's automatically computed.
