@@ -27,7 +27,6 @@ measures should be calculated.
 
 ```clojure
 ;; Calculate the sum of a seq of elements.
-user> (require '[babbage.provided.core :as b])
 user> (calculate
         (stats identity b/sum) ;; A stat that's the sum of the elements.
         [1 2 3 4])
@@ -97,7 +96,7 @@ their inputs:
 user> (calculate 
         {:both (stats #(+ (or (:x %) 0)            ;; Compute the mean of this function on each element.
                           (or (:y %) 0))
-                      mean)}
+                      b/mean)}
         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
 {:all {:both {:count 4, :mean 7.75, :sum 31}}}
 ```
