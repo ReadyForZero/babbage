@@ -95,3 +95,76 @@
            ;; This stat represents an extraction function that always returns nil.
            {:x (stats (fn [_] nil) (histogram 2))}
            input)))
+
+
+;;;;;;;;;;;;; examples from readme are accurate!
+
+(expect {:all {:the-result {:mean 1.5,
+                            :count 2,
+                            :sum 3}}}
+        (calculate {:the-result (stats :x sum mean)}
+                   [{:x 1} {:x 2}]))
+
+(expect {:all {:x-result {:count 3, :mean 2.0,  :sum 6},
+               :y-result {:count 2, :mean 12.5, :sum 25}}}
+        (calculate
+         {:x-result (stats :x sum mean)
+          :y-result (stats :y mean)}
+         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]))
+
+(expect {:all {:both {:count 4, :mean 7.75, :sum 31}}}
+        (calculate
+        {:both (stats #(+ (or (:x %) 0)
+                          (or (:y %) 0))
+                      mean)}
+        [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]))
+
+(expect {:all {:mean 16.6,
+               :users {:unique 3, :count-binned {1 3, 3 1, 4 1}},
+               :sum 83,
+               :count 5}}
+        (calculate
+         (stats :sale mean sum (by :user_id :users count-unique))
+         [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+          {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+          {:sale 25 :user_id 1}]))
+
+(expect {:all {:mean 16.6,
+               :user->sales {3 {:mean 13.0, :count 1, :sum 13},
+                             4 {:mean 20.0, :count 1, :sum 20},
+                             1 {:mean (/ 50 3.0), :count 3, :sum 50}},
+               :sum 83,
+               :count 5}} (calculate
+                           (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
+                           [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+                            {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+                            {:sale 25 :user_id 1}]))
+
+
+(expect {:all   {:both {:mean 7.75, :sum 31, :count 4}},
+         :has-y {:both {:mean 13.0, :sum 26, :count 2}}}
+        (calculate
+         (sets {:has-y :y})
+         {:both (stats #(+ (or (:x %) 0)
+                           (or (:y %) 0))
+                       mean)}
+         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]))
+
+(def my-sets (-> (sets {:has-y :y
+                              :good :good?})
+                       (complement :good)
+                       (intersections :has-y
+                         [:good :not-good])))
+
+(def my-fields {:both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})
+
+(expect {:Shas-y-and-not-goodZ {:both {:mean 16.0, :sum 16, :count 1}},
+         :Shas-y-and-goodZ     {:both {:mean 5.0,  :sum 5,  :count 1}},
+         :good                 {:both {:mean 6.0,  :sum 12, :count 2}},
+         :has-y                {:both {:mean 10.5, :sum 21, :count 2}},
+         :all                  {:both {:mean 8.0,  :sum 32, :count 4}},
+         :not-good             {:both {:mean 10.0, :sum 20, :count 2}}}
+        (calculate my-sets my-fields [{:x 1 :good? true :y 4}
+                                      {:x 4 :good? false}
+                                      {:x 7 :good? true}
+                                      {:x 10 :good? false :y 6}]))
