@@ -95,7 +95,7 @@ their inputs:
 ```clojure
 ;; Accumulate the mean over the sum of the two fields.
 user> (calculate 
-        {:both (stats #(+ (or (:x %) 0) 
+        {:both (stats #(+ (or (:x %) 0)            ;; Compute the mean of this function on each element.
                           (or (:y %) 0))
                       mean)}
         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}])
@@ -177,45 +177,36 @@ user> (calculate
  :has-y {:both {:mean 13.0, :sum 26, :count 2}}} ;; Only two elements in the seq had y.
 ```
 
-Given an initial predicate map, arbitrary complements, intersections,
-and unions can be taken:
+Given an initial predicate map, arbitrary compositions of those predicates can be performed.
 
 ```clojure
-;; More complex set operations: 
+;; Construct 'my-sets' using complement and intersection.
 user> (def my-sets (-> (sets {:has-y :y
-                           :good :good?})
-                    ;; add a set called :not-good
-                    (complement :good)
-                    ;; calculate the intersections of :has-y and :good, and :has-y and :not-good.
-                    (intersections :has-y
-                                   [:good :not-good])))                                   
+                              :good :good?})
+                       (complement :good)        ;; Adds a set called :not-good.
+                       (intersections :has-y
+                         [:good :not-good])))    ;; Two more sets ':has-y and :good' and ':has-y and :not-good'.
 #'user/my-sets
-user> (def my-fields {:x-result (stats :x b/sum b/mean)
-                      :y-result (stats :y b/mean)
-                      :both (stats #(+ (or (:x %) 0) (or (:y %) 0)) b/mean)})
+
+;; Construct 'my-fields' as per examples above.
+user> (def my-fields {:both (stats #(+ (or (:x %) 0) (or (:y %) 0)) b/mean)})
 #'user/my-fields
+
+;; Make it go.
 user> (calculate my-sets my-fields [{:x 1 :good? true :y 4}
                                     {:x 4 :good? false}
                                     {:x 7 :good? true}
                                     {:x 10 :good? false :y 6}])
-{:Shas-y-and-not-goodZ {:x-result {:mean 10.0, :count 1, :sum 10},
-                        :y-result {:mean 6.0, :sum 6, :count 1},
-                        :both {:mean 16.0, :sum 16, :count 1}},
- :Shas-y-and-goodZ     {:x-result {:mean 1.0, :count 1, :sum 1},
-                        :y-result {:mean 4.0, :sum 4, :count 1},
-                        :both {:mean 5.0, :sum 5, :count 1}},
- :good                 {:x-result {:mean 4.0, :count 2, :sum 8},
-                        :y-result {:mean 4.0, :sum 4, :count 1},
-                        :both {:mean 6.0, :sum 12, :count 2}},
- :has-y                {:x-result {:mean 5.5, :count 2, :sum 11},
-                        :y-result {:mean 5.0, :sum 10, :count 2},
-                        :both {:mean 10.5, :sum 21, :count 2}},
- :all                  {:x-result {:mean 5.5, :count 4, :sum 22},
-                        :y-result {:mean 5.0, :sum 10, :count 2},
-                        :both {:mean 8.0, :sum 32, :count 4}},
- :not-good             {:x-result {:mean 7.0, :count 2, :sum 14},
-                        :y-result {:mean 6.0, :sum 6, :count 1},
-                        :both {:mean 10.0, :sum 20, :count 2}}}
+{:Shas-y-and-not-goodZ {:both {:mean 16.0, :sum 16, :count 1}},
+ :Shas-y-and-goodZ     {:both {:mean 5.0,  :sum 5,  :count 1}},
+ :good                 {:both {:mean 6.0,  :sum 12, :count 2}},
+ :has-y                {:both {:mean 10.5, :sum 21, :count 2}},
+ :all                  {:both {:mean 8.0,  :sum 32, :count 4}},
+ :not-good             {:both {:mean 10.0, :sum 20, :count 2}}}
+
+;; Seamless inspection across multiple subsets.
+user> (xget *1 [:good :not-good] :both :mean)    ;; Get the mean for :good and :not-good.
+(6.0 10.0)
 ```
 
 Predicate functions will only be called once per item in the input seq.
