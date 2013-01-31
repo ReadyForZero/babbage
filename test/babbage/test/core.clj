@@ -21,6 +21,12 @@
 (def low-sets {:low :low?
                :high (clojure.core/complement :low?)})
 
+;;; only dependent values---ratio doesn't know how to add what's required.
+(expect Exception (stats :x (ratio :max :min)))
+(expect Exception (stats :x (ratio :max :min) max))
+;; mean does
+(expect (stats :x mean))
+
 ;; non-nested, no subsets.
 (let [r (:all (calculate (sets) v-extrema values))]
   (expect v-mean (:mean r))
