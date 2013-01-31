@@ -197,7 +197,7 @@ user> (calculate my-sets my-fields [{:x 1 :good? true :y 4}
                                     {:x 4 :good? false}
                                     {:x 7 :good? true}
                                     {:x 10 :good? false :y 6}])
-{:Shas-y-and-not-goodZ {:both {:mean 16.0, :sum 16, :count 1}},
+{:Shas-y-and-not-goodZ {:both {:mean 16.0, :sum 16, :count 1}},  ;; The result contains our compositions.
  :Shas-y-and-goodZ     {:both {:mean 5.0,  :sum 5,  :count 1}},
  :good                 {:both {:mean 6.0,  :sum 12, :count 2}},
  :has-y                {:both {:mean 10.5, :sum 21, :count 2}},
