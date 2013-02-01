@@ -6,7 +6,7 @@ A library to create computation engines.
 ## Usage
 
 ```clojure
-[babbage "0.1.0"] ;; In your project.clj
+[babbage "1.0.0"] ;; In your project.clj
 
 (:use babbage.core) ;; Core functions.
 
