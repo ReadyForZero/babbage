@@ -10,4 +10,4 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo
             :comments "same as Clojure"}
-  :description "A library to create computation engines.")
+  :description "Easily gather data and compute summary measures declaratively.")

@@ -1,7 +1,8 @@
 babbage
 =======
 
-A library to create computation engines.
+A library to create computation engines. Easily gather data and
+compute summary measures in a declarative way.
 
 ## Usage
 
