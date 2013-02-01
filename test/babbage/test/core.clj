@@ -102,6 +102,23 @@
            {:x (stats (fn [_] nil) (histogram 2))}
            input)))
 
+;; Check that set and field function exceptions are warned about.
+(expect #(re-find #"Set predicate failed" %)
+        (try (calculate
+              (sets {:has-y #(-> % :y (> 0))})
+              {:the-result (stats :x sum)}
+              [{:x 1} {:x 2}])
+             (catch Exception e
+               (str e))))
+
+(expect #(re-find #"Field extractor failed" %)
+        (try (calculate
+              (sets {:has-y :y})
+              {:the-result (stats #(-> % :y (> 0)) sum)}
+              [{:x 1} {:x 2}])
+             (catch Exception e
+               (str e))))
+
 
 ;;;;;;;;;;;;; examples from readme are accurate!
 

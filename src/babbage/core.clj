@@ -168,8 +168,11 @@
                 fields (if (fn? fields) {:_ fields} fields)]
             (fn [ent]
               (fmap (fn [pred]
-                      (when (pred ent)
-                        (finalizer (fmap #(% ent) fields)))) pred-map)))))))
+                      (when (util/safely-run {:where "Set predicate" :what ent} (pred ent))
+                        (finalizer
+                         (fmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
+                               fields))))
+                    pred-map)))))))
 
 (defmacro ^:private defsetop [name doc destruct [result-name result-body] [res-name res-body]]
   `(defn ~name ~doc [f# ~@destruct]

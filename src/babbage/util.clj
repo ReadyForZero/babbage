@@ -13,6 +13,12 @@
     "nil"
     (str x)))
 
+(defmacro safely-run [{:keys [where what]} & body]
+  `(try
+     ~@body
+     (catch Exception e#
+       (throw (Exception. (str ~where " failed on: " ~what))))))
+
 (defn maybe-throw-error [a-str a-val]
   (when (nil? a-val)
     (throw
