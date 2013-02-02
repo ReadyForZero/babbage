@@ -9,7 +9,7 @@ compute summary measures in a declarative way.
 ```clojure
 [babbage "1.0.0"] ;; In your project.clj
 
-(:use babbage.core) ;; Core functions.
+(:require [babbage.core :refer :all]) ;; Core functions.
 
 (:require [babbage.provided.core :as b]) ;; Some basic provided statistics.
 ```
