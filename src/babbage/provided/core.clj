@@ -1,7 +1,9 @@
 ;; Elemental accumulators.
 
 (ns babbage.provided.core
-  (:require [babbage.provided.histogram :as histogram])
+  (:require [babbage.provided.histogram :as histogram]
+            [babbage.provided.gaussian])
+  (:import [babbage.provided.gaussian Gaussian])
   (:use [babbage.core :only [defstatfn statfn]]
         [babbage.monoid :only [monoid]]
         babbage.util
@@ -70,3 +72,7 @@
   [width]
   (let [h (histogram/m-histogram width)]
     (statfn histogram h)))
+
+(defstatfn gaussian
+  (fn [& [v]]
+    (when v (Gaussian. 1 (double v) 0))))

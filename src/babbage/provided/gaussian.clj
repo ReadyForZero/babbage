@@ -19,7 +19,3 @@
   (mempty? [self] false)
   (value [self] {:count n :mean m
                  :variance (if (not= 1 n) (/ m2 (- n 1)) 0)}))
-
-(defstatfn gaussian
-  (fn [& [v]]
-    (when v (Gaussian. 1 (double v) 0))))
