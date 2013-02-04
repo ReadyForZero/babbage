@@ -1,5 +1,5 @@
 (ns babbage.provided.gaussian
-  (:require babbage.monoid))
+  (:require [babbage.monoid :refer :all]))
 
 ;; following http://izbicki.me/blog/gausian-distributions-are-monoids
 (defrecord Gaussian [n m m2]
