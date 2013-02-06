@@ -191,3 +191,18 @@
                                       {:x 4 :good? false}
                                       {:x 7 :good? true}
                                       {:x 10 :good? false :y 6}]))
+
+(expect {:all {:count-binned-normalized {1 0.5,
+                                         3 0.5}
+               :count 4
+               :count-binned {1 2, 3 2}}}
+        (calculate (stats :x count-binned-normalized)
+                   [{:x 1} {:x 3} {:x 1} {:x 3}]))
+
+(expect {:all {:count-binned-normalized {1 0.25,
+                                         3 0.75}
+               :count 8
+               :count-binned {1 2, 3 6}}}
+        (calculate (stats :x count-binned-normalized)
+                   [{:x 1} {:x 3} {:x 1} {:x 3}
+                    {:x 3} {:x 3} {:x 3} {:x 3}]))

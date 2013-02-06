@@ -7,6 +7,7 @@
   (:use [babbage.core :only [defstatfn statfn]]
         [babbage.monoid :only [monoid]]
         babbage.util
+        [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [max min count set list complement]))
 
@@ -42,13 +43,19 @@
   (fn [o]
     (if (nil? o) (sorted-map) (sorted-map o (m-sum 1)))))
 
-
 ;; Keeping track of unique counts is dependent on keeping track of the seen ones.
 (defnmeta d-count-unique {:requires #{:count-binned}} [m]
   (.count (get m :count-binned)))
 
 (defstatfn count-unique d-count-unique :requires count-binned :name :unique)
 
+(defnmeta d-count-binned-normalized {:requires #{:count-binned :count}}
+  [m]
+  (let [c (:count m)
+        bins (:count-binned m)]
+    (fmap #(/ (double %) c) bins)))
+
+(defstatfn count-binned-normalized d-count-binned-normalized :requires [count-binned count])
 
 ;; Keep track of a ratio of one measure to another. This does not use defnmeta because the
 ;; requirements are determined from the arguments.
