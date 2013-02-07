@@ -25,6 +25,11 @@
   [f m]
   (Pure. (f (get m arb))))
 
+(defmethod f/fmap clojure.lang.PersistentArrayMap
+  [f m]
+  (apply array-map (interleave (keys m)
+                               (map f (vals m)))))
+
 (defmethod print-method Pure [o ^java.io.Writer w]
   (.write w "(new ")
   (pr Pure)
