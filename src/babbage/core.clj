@@ -202,6 +202,9 @@
 (defn union-name [& keys]
   (make-set-function-name "or" keys))
 
+(defn complement-name [k]
+  (keyword (str "not-" (name k))))
+
 (defsetop intersect
   "Add the intersection of two or more subsets, named by the key
    arguments, to the set given by the first argument. The resulting
@@ -219,6 +222,25 @@
   [key1 & keys]
   [result-name (make-set-function-name "or" (list* key1 keys))]
   [res (assoc res result-name (some res (list* key1 keys)))])
+
+(defn tails [xs]
+  (lazy-seq (cons xs (if (empty? xs)
+                       '()
+                       (tails (rest xs))))))
+
+(defn- pick [xs]
+  (for [i (first xs)
+        r (if (seq (rest xs)) (pick (rest xs)) [()])]
+    (flatten [i r])))
+
+(defn- nested-set-names
+  [real-namer & keyseqs]
+  (let [keyseqs (map #(if (or (seq? %) (vector? %)) % [%]) keyseqs)
+        keyseq-tails (drop-last 2 (tails keyseqs))]
+    (mapcat #(map (partial apply real-namer) (pick %)) keyseq-tails)))
+
+(def unions-names (partial nested-set-names union-name))
+(def intersections-names (partial nested-set-names intersection-name))
 
 (defn- nested-set-operations
   [real-op op-str f & keyseqs]
@@ -289,3 +311,8 @@
   "Enables fetching of a value across multiple sets."
   [data sets & ks]
   (map #(get-in data (cons % ks)) sets))
+
+(defn xget*
+  "Fetch a value across all sets."
+  [data & ks]
+  (vals (fmap #(get-in % ks) data)))
