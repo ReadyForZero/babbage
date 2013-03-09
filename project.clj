@@ -3,7 +3,7 @@
   :dependencies [[expectations "1.4.18"]
                  [org.clojure/clojure "1.4.0"]
                  [org.clojure/algo.generic "0.1.0"]
-                 [macroparser "0.0.1"]
+                 [bwo/macroparser "0.0.5"]
                  [the/parsatron "0.0.4"]
                  [trammel "0.7.0"]]
   :license {:name "Eclipse Public License - v 1.0"
