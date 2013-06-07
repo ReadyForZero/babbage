@@ -1,11 +1,11 @@
 ;; Elemental accumulators.
 
 (ns babbage.provided.core
-  (:require [babbage.provided.histogram :as histogram]
+  (:require [babbage.monoid :as monoid :refer [monoid]]
+            [babbage.provided.histogram :as histogram]
             [babbage.provided.gaussian])
   (:import [babbage.provided.gaussian Gaussian])
   (:use [babbage.core :only [defstatfn statfn]]
-        [babbage.monoid :only [monoid]]
         babbage.util
         [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
@@ -23,6 +23,23 @@
 (def m-sum (monoid + 0)) ;; Sum monoid, used for next two stats.
 (defstatfn sum m-sum)
 (defstatfn count (fn [x] (m-sum (if (nil? x) 0 1))))
+
+(defrecord Any [b]
+  monoid/Monoid
+  (<> [self other] (if b self other))
+  (mempty [self] (->Any false))
+  (mempty? [self] (not b))
+  (value [self] b))
+
+(defrecord All [b]
+  monoid/Monoid
+  (<> [self other] (if b other self))
+  (mempty [self] (->Any true))
+  (mempty? [self] (boolean b))
+  (value [self] b))
+
+(defstatfn any ->Any)
+(defstatfn all ->All)
 
 (defstatfn list (fn [x] (when-not (nil? x) [x]))) 
 (defstatfn set (fn [x] (when-not (nil? x) #{x})))
