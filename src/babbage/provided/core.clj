@@ -24,9 +24,8 @@
 (defstatfn sum m-sum)
 (defstatfn count (fn [x] (m-sum (if (nil? x) 0 1))))
 
-;; These collections are extended by MSeq.
-(defstatfn list (fn [x] [x])) 
-(defstatfn set (fn [x] #{x}))
+(defstatfn list (fn [x] (when-not (nil? x) [x]))) 
+(defstatfn set (fn [x] (when-not (nil? x) #{x})))
 
 ;; "mean" is dependent on other computed statistics, and has the
 ;; computation function defined instead of a monoid.
@@ -36,7 +35,6 @@
       (/ (get m :sum) (double count)))))
 
 (defstatfn mean d-mean :requires [count sum])
-
 
 ;; Keep track of counts for each item. This result of this is like 'frequencies'.
 (defstatfn count-binned
