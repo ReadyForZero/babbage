@@ -25,7 +25,7 @@
       my-val)))
 
 (defn monoid [op zero]  
-  (fn ([& [my-val]] (mk-monoid op (or my-val zero) zero))))
+  (fn ([& [my-val]] (mk-monoid op (if (nil? my-val) zero my-val) zero))))
 
 (extend-protocol Monoid
   ;; the accumulators library treated maps as collections of values:
@@ -52,6 +52,12 @@
   clojure.lang.IPersistentVector
   (<> [self other] (vec (concat self other)))
   (mempty [self] [])
+  (mempty? [self] (empty? self))
+  (value [self] self)
+
+  clojure.lang.PersistentVector$ChunkedSeq
+  (<> [self other] (concat self other))
+  (mempty [self] ())
   (mempty? [self] (empty? self))
   (value [self] self)
 
