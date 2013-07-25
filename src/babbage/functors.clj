@@ -1,12 +1,12 @@
-(ns babbage.pfunctor  
+(ns babbage.functors
   (:require [babbage.util :as u]
             [babbage.mseq]
             [clojure.algo.generic.functor :as f])
   (:import [babbage.mseq MSeq]))
 
-;; reducers-based implementations of fmap for various containers,
-;; falling back to regular fmap.
-;; makes a difference on very large containers ... which we may not
+;; transient, and reducers-based, functor implementations, falling back to regular fmap.
+
+;; reducers only make a difference on very large containers ... which we may not
 ;; actually encounter:
 ;; babbage.pfunctor> (def d (let [keys (map (comp keyword str) (range 10000)) vals (range 10000)]
 ;;                            (into {} (map vector keys vals))))
@@ -44,6 +44,26 @@
        [f v]
        (f/fmap f v)))
  (def pfmap f/fmap))
+
+(defmulti tfmap
+  (fn [f s] (type s)))
+
+(defmethod tfmap :default [f s] (f/fmap f s))
+
+(defmethod tfmap clojure.lang.IPersistentMap
+  [f m]
+  (let [kvs (seq m)]
+    (loop [acc (transient {}) kvs kvs]
+      (if-let [[k v] (first kvs)]
+        (recur (assoc! acc k (f v)) (next kvs))
+        (persistent! acc)))))
+
+(defmethod tfmap MSeq
+  [f ^MSeq mseq]
+  (let [ms (.ms mseq)]
+    (if (seq ms)
+      (MSeq. (list* (tfmap f (first ms)) (rest ms)))
+      (MSeq. []))))
 
 (defmethod f/fmap clojure.lang.LazySeq
   [f v]

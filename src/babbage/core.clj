@@ -5,7 +5,7 @@
             [babbage.util :as util]
             [clojure.string :as str])
   (:use [clojure.algo.generic.functor :only [fmap]]
-        [babbage.pfunctor :only [pfmap]]
+        [babbage.functors :only [tfmap]]
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [complement]))
 
@@ -32,10 +32,9 @@
         m (util/prepare-map m)]
     (fn [ent]
       (let [v (extractor ent)]
-        (pfmap (fn [f]
-                 (if (-> f meta :whole-record)
-                   (f ent v)
-                   (f v))) m)))))
+        (tfmap (fn [f]
+                (if (-> f meta :whole-record)
+                  (f ent v) (f v))) m)))))
 
 (defmacro statfn
   "Create a function for computing statistics suitable for passing as
@@ -180,10 +179,10 @@
           (let [finalizer (if (fn? fields) :_ identity)
                 fields (if (fn? fields) {:_ fields} fields)]
             (fn [ent]
-              (pfmap (fn [pred]
+              (tfmap (fn [pred]
                       (when (util/safely-run {:where "Set predicate" :what ent} (pred ent))
                         (finalizer
-                         (pfmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
+                         (tfmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
                                fields))))
                     pred-map)))))))
 
@@ -374,7 +373,7 @@
                        (let [leaf-fn (sets-fn fields)]
                          (when (seq input)
                            (m/value (r/fold (fn ([a b] (m/<> a b))
-                                               ([] nil))
+                                              ([] nil))
                                             m/<>
                                             (r/map leaf-fn input)))))))
                   (def r-calculate calculate))
