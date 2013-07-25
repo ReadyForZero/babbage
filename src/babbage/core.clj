@@ -5,6 +5,7 @@
             [babbage.util :as util]
             [clojure.string :as str])
   (:use [clojure.algo.generic.functor :only [fmap]]
+        [babbage.pfunctor :only [pfmap]]
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [complement]))
 
@@ -31,10 +32,10 @@
         m (util/prepare-map m)]
     (fn [ent]
       (let [v (extractor ent)]
-        (fmap (fn [f]
-                (if (-> f meta :whole-record)
-                  (f ent v)
-                  (f v))) m)))))
+        (pfmap (fn [f]
+                 (if (-> f meta :whole-record)
+                   (f ent v)
+                   (f v))) m)))))
 
 (defmacro statfn
   "Create a function for computing statistics suitable for passing as
@@ -179,10 +180,10 @@
           (let [finalizer (if (fn? fields) :_ identity)
                 fields (if (fn? fields) {:_ fields} fields)]
             (fn [ent]
-              (fmap (fn [pred]
+              (pfmap (fn [pred]
                       (when (util/safely-run {:where "Set predicate" :what ent} (pred ent))
                         (finalizer
-                         (fmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
+                         (pfmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
                                fields))))
                     pred-map)))))))
 
@@ -364,6 +365,19 @@
      (let [leaf-fn (sets-fn fields)]
        (when (seq input)
          (m/value (reduce m/<> (pmap leaf-fn input)))))))
+
+(util/if-ns-avail (require '[clojure.core.reducers :as r])
+                  (defn r-calculate
+                    ([fields input]
+                       (calculate (sets) fields input))
+                    ([sets-fn fields input]
+                       (let [leaf-fn (sets-fn fields)]
+                         (when (seq input)
+                           (m/value (r/fold (fn ([a b] (m/<> a b))
+                                               ([] nil))
+                                            m/<>
+                                            (r/map leaf-fn input)))))))
+                  (def r-calculate calculate))
 
 (defn xget
   "Enables fetching of a value across multiple sets."

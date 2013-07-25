@@ -37,16 +37,16 @@
 ;; with the result of calling the functions that constitute the
 ;; remainder of its elements:
 
-(defrecord MSeq [ms]
+(deftype MSeq [ms]
   ;; the rests of ms and (:ms other) are assumed to be identical.
   m/Monoid
   (<> [self other]
     (if-let [s (first ms)]
-      (if-let [o (first (:ms other))]
-        (->MSeq (list* (m/<> s o) (rest ms)))
+      (if-let [o (first (.ms ^MSeq other))]
+        (MSeq. (list* (m/<> s o) (rest ms)))
         self)
       other))
-  (mempty [self] (->MSeq (list* (m/mempty (first ms)) (rest ms))))
+  (mempty [self] (MSeq. (list* (m/mempty (first ms)) (rest ms))))
   (mempty? [self] (or (empty? ms) ;; empty? is true of nil
                       (m/mempty? (first ms))))
   (value [self]
@@ -54,8 +54,8 @@
       (let [v (m/value (first ms))]
         (reduce (fn [acc f] (f acc)) v (rest ms))))))
 
-(defmethod f/fmap MSeq [f mseq]
-  (let [ms (:ms mseq)]
+(defmethod f/fmap MSeq [f ^MSeq mseq]
+  (let [ms (.ms mseq)]
     (if (seq ms)
       (MSeq. (list* (f/fmap f (first ms)) (rest ms)))
       (MSeq. []))))

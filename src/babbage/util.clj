@@ -6,6 +6,12 @@
             [the.parsatron :as parsatron])
   (:import babbage.mseq.MSeq))
 
+(defmacro if-ns-avail [req then & [else]]
+  (if (try (eval req) true
+           (catch Throwable _ false))
+    then
+    else))
+
 (defn stringify
   "Returns a string, writing out 'nil' if nil."
   [x]
