@@ -41,11 +41,13 @@
   ;; the rests of ms and (:ms other) are assumed to be identical.
   m/Monoid
   (<> [self other]
-    (if-let [s (first ms)]
-      (if-let [o (first (.ms ^MSeq other))]
-        (MSeq. (list* (m/<> s o) (rest ms)))
-        self)
-      other))
+    (if other
+      (if-let [s (first ms)]
+        (if-let [o (first (.ms ^MSeq other))]
+          (MSeq. (list* (m/<> s o) (rest ms)))
+          self)
+        other)
+      self))
   (mempty [self] (MSeq. (list* (m/mempty (first ms)) (rest ms))))
   (mempty? [self] (or (empty? ms) ;; empty? is true of nil
                       (m/mempty? (first ms))))
