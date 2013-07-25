@@ -186,6 +186,52 @@
                                fields))))
                     pred-map)))))))
 
+(defn computed-set
+  "Compute a set dynamically as input is processed. set-name-f should
+   return nil if the input item belongs in no set, or the name of the
+   set if it belongs in one. Note that set-name-f is passed the entire
+   entity being processed, so it may have to extract a value from a
+   map:
+
+   > (defn bucketize [n]
+       (when n
+         (let [lower (* 10 (int (/ n 10)))
+               upper (+ 10 lower)]
+           (keyword (str \"between-\" lower \"-and-\" upper)))))
+   #'babbage.core/bucketize
+   > (calculate (-> (sets) (computed-set (comp bucketize :x)) (complement :between-0-and-10))
+                (stats :x babbage.provided.core/count)
+                [{:x 11} {:x 4}])
+   {:between-0-and-10 {:count 1},
+    :not-between-0-and-10 {:count 1},
+    :between-10-and-20 {:count 1},
+    :all {:count 2}}
+
+   Note also that (in general) functions manipulating sets, including
+   this one, complement, intersection, etc. are like middleware; the
+   order matters. The right complement is calculated in the previous
+   case because the items are put into buckets *first*. Compare:
+
+   > (calculate (-> (sets) (complement :between-0-and-10) (computed-set (comp bucketize :x)))
+                (stats :x babbage.provided.core/count)
+                [{:x 11} {:x 4}])
+   {:between-0-and-10 {:count 1},
+    :between-10-and-20 {:count 1},
+    :not-between-0-and-10 {:count 2},
+    :all {:count 2}}
+
+   The complement of :between-0-and-10 is calculated incorrectly
+   because, when the complement function runs, nothing has been put
+   into that set yet, even though something *will* be."
+  [f set-name-f]
+  (fn [fields]
+    (let [f (f fields)]
+      (fn [ent]
+        (let [res (f ent)]
+          (if-let [set-name (set-name-f ent)]
+            (assoc res set-name (:all res))
+            res))))))
+
 (defmacro ^:private defsetop [name doc destruct [result-name result-body] [res-name res-body]]
   `(defn ~name ~doc [f# ~@destruct]
      (let [~result-name ~result-body]
