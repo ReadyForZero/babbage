@@ -69,6 +69,18 @@
   `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :requires ~requires :name ~name)
                    {:doc ~doc})))
 
+(defn lift-seq
+  "Lift stats functions to operate over a sequence of values, with the
+   result placed under field-name:
+
+   > (calculate (stats :x p/count (lift-seq :inlist p/mean)) [{:x [1 2]} {:x [2 3 7]}])
+   {:all {:inlist {:mean 3.0, :sum 15, :count 5},
+          :count 2}}"
+  [field-name sfunc1 & sfuncs]
+  (let [sfuncs (cons sfunc1 sfuncs)
+        prepared (apply stats identity sfuncs)]
+    (fn [m] (assoc m field-name (fn [v] (when v (reduce m/<> (map prepared v))))))))
+
 (defn by
    "Allows passing whole records to a stats function within a call to
    stats. Similar to map-with-key and map-with-value, but without
