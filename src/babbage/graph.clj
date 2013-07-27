@@ -202,7 +202,7 @@
     (let [initial-values (resolve-safe initial-values)
           options (merge defaults (resolve-safe options))]
       (run-inline initial-values options nodes))
-    `(run-graph-strategy ~initial-values ~options ~@nodes)))
+    `(run-graph-strategy ~options ~initial-values ~@nodes)))
 
 (defn run-graph
   "Run the graph fns in \"nodes\", supplying them with initial values
