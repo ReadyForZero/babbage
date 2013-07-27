@@ -68,9 +68,12 @@
             (str "Destructuring top-level arguments in graph fn " (:name parsed) " requires :as"))
     (let [provides (or (:provides parsed) (keyword name))
           requires (get-requires (:bindings (:params (first arities))))
+          varname (symbol (str *ns*) (str name))
           attr-map (merge (:attr-map parsed)
                           {:arglists (list 'quote (list (b/unparse-bindings (:params (first arities)))))})
-          fn-attr-map (merge attr-map {:provides provides :requires requires})]
+          fn-attr-map (merge attr-map {:provides provides
+                                       :requires requires
+                                       :varname (list 'quote varname)})]
       `(def ~(with-meta name attr-map)
          (with-meta ~(f/unparse-function (assoc parsed :type 'fn)) ~fn-attr-map)))))
 
@@ -114,6 +117,9 @@
       (throw (Exception. (str "Node has invalid requires metadata: " node (meta node)))))
     m))
 
+(defn node->metamap [n]
+  (merge (node-meta n) {:value n}))
+
 (defn run-graph-strategy
   "Run the graph fns in \"nodes\", supplying them with initial values
    in \"initial-values\", a map, using options supplied in a map.
@@ -139,8 +145,7 @@
   [options initial-values & nodes]
   (let [options (merge defaults options)
         initial-value-nodes (map mapentry->node initial-values)
-        provider-nodes (map (fn [provider] (merge (node-meta provider) {:value provider}))
-                            (remove nil? nodes))
+        provider-nodes (map node->metamap (remove nil? nodes))
         {:keys [lazy? layer-strat leaf-strat]} options
         r (run-layers layer-strat leaf-strat lazy?
                       (u/layers (concat initial-value-nodes provider-nodes)))]
@@ -149,7 +154,7 @@
 (defn- key->sym [k] (symbol (name k)))
 
 (defn- layer-elt-let-expr [elt]
-  [(:value elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
+  [(:varname elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
 
 (defn- layer->let-row [layer-strat leaf-strat lazy? layer]
   (let [bounds (mapv (comp key->sym :provides) layer)
@@ -216,23 +221,25 @@
   `(run-graph-strategy* defaults ~initial-values ~@nodes))
 
 (defn compile-graph-strategy
-  "Create a function from the graph functions in nodes. The resulting
-   function accepts as its first argument map that must contain keys
-   corresponding to all the parameters necessary to run the graph to
-   completion; its second argument is an option map as in run-graph-strategy."
-  [& nodes]
-  (let [[layers still-required] (u/layers-and-required (map (fn [n] (merge (meta n) {:value n}))
-                                                            nodes))]
-    (fn [options initial-values]
-      (assert (set/subset? still-required (set (keys initial-values))))
-      (let [initial-value-nodes (map mapentry->node initial-values)
-            options (merge defaults options)
-            {:keys [layer-strat leaf-strat lazy?]} options]
-        (run-layers layer-strat leaf-strat lazy? (concat [initial-value-nodes] layers))))))
+  "Create a function from the graph functions in nodes, using options options.
+   The resulting function accepts as its first argument map that must
+   contain keys corresponding to all the parameters necessary to run
+   the graph to completion."
+  [options & nodes]
+  (let [mnodes (map node->metamap nodes)
+        {:keys [layer-strat leaf-strat lazy?]} options
+        [layers required] (u/layers-and-required (map node->metamap nodes))
+        rsyms (map key->sym required)]
+    (eval
+     `(fn [m#]
+        (assert (set/subset? ~required (set (keys m#))))
+        (let [{:keys [~@rsyms]} m#
+              ~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
+          (hash-map ~@(interleave (concat required (map :provides mnodes))
+                                  (concat rsyms
+                                          (map (comp key->sym :provides) mnodes)))))))))
 
 (defn compile-graph
   "Like compile-graph-strategy, except the returned function does not accept an options map."
   [& nodes]
-  (let [f (apply compile-graph-strategy nodes)]
-    (fn [initial-values]
-      (f defaults initial-values))))
+  (apply compile-graph-strategy defaults nodes))
