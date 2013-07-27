@@ -240,6 +240,6 @@
                                           (map (comp key->sym :provides) mnodes)))))))))
 
 (defn compile-graph
-  "Like compile-graph-strategy, except the returned function does not accept an options map."
+  "Like compile-graph-strategy, using default options."
   [& nodes]
   (apply compile-graph-strategy defaults nodes))
