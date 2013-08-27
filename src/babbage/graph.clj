@@ -82,10 +82,10 @@
                :lazy? false})
 
 (defn- mapentry->node [[k v]]
-  {:requires nil :provides (keyword (name k)) :value (constantly v)})
+  {:requires nil :provides (keyword (name k)) :value v})
 
 (defn- mapentry->nodem [[k v :as entry]]
-  (assoc (mapentry->node entry) :value `(constantly ~v)))
+  (assoc (mapentry->node entry) :varname v))
 
 (defmacro wrap-when [test wrap-with expr]
   (let [wrap-with (if (seq? wrap-with) wrap-with (list wrap-with))]
@@ -95,10 +95,12 @@
      :else `(if ~test (~@wrap-with ~expr) ~expr))))
 
 (defn- run-layer-elt [result leaf-strat lazy? elt]
-  [(:provides elt)
-   (wrap-when lazy? delay
-              (leaf-strat (:value elt) (map (wrap-when lazy? (comp deref) result)
-                                            (:requires elt))))])
+  (if (not (seq (:requires elt)))
+    [(:provides elt) (wrap-when lazy? delay (:value elt))]
+    [(:provides elt)
+     (wrap-when lazy? delay
+                (leaf-strat (:value elt) (map (wrap-when lazy? (comp deref) result)
+                                              (:requires elt))))]))
 
 (defn- run-layer [layer-strat leaf-strat lazy? result layer]
   (merge result
@@ -170,9 +172,11 @@
         initial-value-nodes (map mapentry->nodem initial-values)
         provider-nodes (map (fn [node] (merge (meta (deref (resolve node))) {:value node})) nodes)
         nodes (concat initial-value-nodes provider-nodes)
-        layers (u/layers nodes)]
-    `(let ~(vec (mapcat (partial layer->let-row layer-strat leaf-strat lazy?)
-                        layers))
+        layers (rest (u/layers nodes))]
+    `(let ~(vec (concat
+                 (mapcat (fn [[k v]] `[~(symbol (name k)) (wrap-when ~lazy? delay ~v)]) initial-values)
+                 (mapcat (partial layer->let-row layer-strat leaf-strat lazy?)
+                         layers)))
        (wrap-when ~lazy? derefmap/->DerefMap
                   (hash-map ~@(interleave (map :provides nodes)
                                           (map (comp key->sym :provides) nodes)))))))
