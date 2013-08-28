@@ -103,10 +103,13 @@
         (zipmap (:provides elt) r)))))
 
 (defn- run-layer [layer-strat leaf-strat lazy? result layer]
-  (merge result
-         (->> layer
-              (layer-strat (partial run-layer-elt result leaf-strat lazy?))
-              (into {}))))
+  (if (= 1 (count layer))
+    (let [m (run-layer-elt result leaf-strat lazy? (first layer))]
+      (merge result (into {} (list m))))
+    (merge result
+           (->> layer
+                (layer-strat (partial run-layer-elt result leaf-strat lazy?))
+                (into {})))))
 
 (defn- run-layers [layer-strat leaf-strat lazy? layers]
   (reduce (partial run-layer layer-strat leaf-strat lazy?) {} layers))
@@ -161,11 +164,15 @@
 (defn- layer->let-row [layer-strat leaf-strat lazy? layer]
   (let [bounds (mapv (comp key->sym :provides) layer)
         bindings (mapv layer-elt-let-expr layer)]
-    [bounds `(~layer-strat (fn [f# args#]
-                             (wrap-when ~lazy? delay
-                                        (~leaf-strat f# (wrap-when ~lazy? (map deref) args#))))
-                           ~(mapv first bindings)
-                           ~(mapv second bindings))]))
+    (if (= 1 (count bounds))
+      [(first bounds) `(wrap-when ~lazy? delay
+                                  (~leaf-strat ~(ffirst bindings)
+                                               (wrap-when ~lazy? (map deref) ~(second (first bindings)))))]
+      [bounds `(~layer-strat (fn [f# args#]
+                               (wrap-when ~lazy? delay
+                                          (~leaf-strat f# (wrap-when ~lazy? (map deref) args#))))
+                             ~(mapv first bindings)
+                             ~(mapv second bindings))])))
 
 (defn run-inline [initial-values options nodes]
   (let [{:keys [lazy? layer-strat leaf-strat]} options
