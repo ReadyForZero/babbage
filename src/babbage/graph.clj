@@ -251,8 +251,3 @@
   "Like compile-graph-strategy, using default options."
   [& nodes]
   (apply compile-graph-strategy defaults nodes))
-
-(defn e-at-one [f]
-  (let [gsym (keyword (gensym))]
-    (.put whm gsym f)
-    (eval `(fn [x#] ((.get whm ~gsym) x#)))))
