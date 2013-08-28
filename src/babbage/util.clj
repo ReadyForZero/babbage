@@ -66,43 +66,60 @@
 (defmacro fnmeta [meta & sigs]
   `(with-meta (fn ~@sigs) ~meta))
 
+(defn ->set [k]
+  (if (sequential? k)
+    (set k)
+    #{k}))
+
 (defn dfs
   "Returns nil if a cycle was encountered, otherwise pair of visited
   nodes, map of nodes to ancestors."
   [f seen ancestors depmap]
-  (let [f-name (:provides f)
-        seen (conj seen f-name)
+  (let [f-name (->set (:provides f))
+        seen (set/union seen f-name)
         out (keep depmap (:requires f))]
     (loop [out out seen seen ancestors ancestors]
       (if-let [g (first out)]
-        (let [g-name (:provides g)]
-          (if (seen g-name)
-            (when-not (contains? (ancestors f-name) g-name) ;; back edge
-              (recur (rest out) (conj seen g-name) ancestors)) ;; cross edge
+        (let [g-name (->set (:provides g))
+              f-ancestors (reduce set/union #{} (map ancestors f-name))]
+          (if (some seen g-name)
+            (when-not (some #(contains? f-ancestors %) g-name) ;; back edge
+              (recur (rest out) (set/union seen g-name) ancestors)) ;; cross edge
             ;; forward edge
-            (when-let [[new-seen new-anc] (dfs g seen (assoc ancestors g-name
-                                                             (set/union #{f-name} (ancestors f-name)))
+            (when-let [[new-seen new-anc] (dfs g seen
+                                               (reduce (fn [anc g-name*]
+                                                         (assoc anc g-name* (set/union f-name f-ancestors)))
+                                                       ancestors
+                                                       g-name)
                                                depmap)]
               (recur (rest out) new-seen new-anc))))
         [seen ancestors]))))
 
 (defn circular? [has-requires depmap]
-  (if-let [f (first has-requires)]
-    (let [dfs-result (dfs f #{} {} depmap)]
-      (if (nil? dfs-result) true
-          (recur (remove (comp (first dfs-result) :provides) has-requires) depmap)))
-    false))
+  (let [depmap (reduce (fn [acc [k v]]
+                              (if (sequential? k)
+                                (reduce #(assoc %1 %2 v) acc k)
+                                (assoc acc k v))) {} depmap)]
+    (if-let [f (first has-requires)]
+      (let [dfs-result (dfs f #{} {} depmap)]
+        (if (nil? dfs-result)
+          true
+          (recur (remove (fn [{:keys [provides]}]
+                           (if (sequential? provides)
+                             (every? #(contains? (first dfs-result) %) provides)
+                             (contains? (first dfs-result) provides))) has-requires) depmap)))
+      false)))
 
 (defn still-required [independent dependent]
   (let [required (set (reduce m/<> (map :requires dependent)))
-        provided (set (map :provides (concat dependent independent)))]
+        provided (reduce set/union (map (comp ->set :provides) (concat dependent independent)))]
     (set/difference required provided)))
 
 (defn group-deps [already-grouped dependent]
   (loop [already-grouped already-grouped dependent dependent groups []]
     (if (seq dependent)
       (let [{this-group true remainder false} (group-by #(every? already-grouped (:requires %)) dependent)]
-        (recur (set/union already-grouped (set (map :provides this-group)))
+        (recur (reduce set/union already-grouped (map (comp ->set :provides) this-group))
                remainder
                (conj groups this-group)))
       groups)))

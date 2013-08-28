@@ -7,6 +7,8 @@
             [macroparser.parsers :as p]
             [the.parsatron :as parsatron]))
 
+(set! *warn-on-reflection* true)
+
 (defn- parse-defgraphfn []
   (p/parseq->map
    (p/named :name (p/symbol))
@@ -68,14 +70,13 @@
             (str "Destructuring top-level arguments in graph fn " (:name parsed) " requires :as"))
     (let [provides (or (:provides parsed) (keyword name))
           requires (get-requires (:bindings (:params (first arities))))
-          varname (symbol (str *ns*) (str name))
           attr-map (merge (:attr-map parsed)
                           {:arglists (list 'quote (list (b/unparse-bindings (:params (first arities)))))})
           fn-attr-map (merge attr-map {:provides provides
-                                       :requires requires
-                                       :varname (list 'quote varname)})]
-      `(def ~(with-meta name attr-map)
-         (with-meta ~(f/unparse-function (assoc parsed :type 'fn)) ~fn-attr-map)))))
+                                       :requires requires})]
+      `(let [f# ~(f/unparse-function (assoc parsed :type 'fn))]
+         (def ~(with-meta name attr-map)
+           (with-meta f# ~fn-attr-map))))))
 
 (def defaults {:leaf-strat apply
                :layer-strat pmap
@@ -84,23 +85,22 @@
 (defn- mapentry->node [[k v]]
   {:requires nil :provides (keyword (name k)) :value v})
 
-(defn- mapentry->nodem [[k v :as entry]]
-  (assoc (mapentry->node entry) :varname v))
-
 (defmacro wrap-when [test wrap-with expr]
   (let [wrap-with (if (seq? wrap-with) wrap-with (list wrap-with))]
     (cond
-     (= true test) `(~@wrap-with ~expr)
-     (or (nil? test) (= false test)) expr
+     (true? test) `(~@wrap-with ~expr)
+     (or (nil? test) (false? test)) expr
      :else `(if ~test (~@wrap-with ~expr) ~expr))))
 
 (defn- run-layer-elt [result leaf-strat lazy? elt]
   (if (not (seq (:requires elt)))
     [(:provides elt) (wrap-when lazy? delay (:value elt))]
-    [(:provides elt)
-     (wrap-when lazy? delay
-                (leaf-strat (:value elt) (map (wrap-when lazy? (comp deref) result)
-                                              (:requires elt))))]))
+    (let [r (wrap-when lazy? delay (leaf-strat (:value elt)
+                                               (map (wrap-when lazy? (comp deref) result)
+                                                    (:requires elt))))]
+      (if (keyword? (:provides elt))
+        [(:provides elt) r]
+        (zipmap (:provides elt) r)))))
 
 (defn- run-layer [layer-strat leaf-strat lazy? result layer]
   (merge result
@@ -113,14 +113,11 @@
 
 (defn node-meta [node]
   (let [{:keys [provides requires] :as m} (meta node)]
-    (when (not (keyword? provides))
+    (when-not (or (keyword? provides) (and (sequential? provides) (every? keyword? provides)))
       (throw (Exception. (str "Node lacks provides metadata: " node (meta node)))))
     (when (not (every? keyword? requires))
       (throw (Exception. (str "Node has invalid requires metadata: " node (meta node)))))
-    m))
-
-(defn node->metamap [n]
-  (merge (node-meta n) {:value n}))
+    (assoc m :value node)))
 
 (defn run-graph-strategy
   "Run the graph fns in \"nodes\", supplying them with initial values
@@ -147,16 +144,19 @@
   [options initial-values & nodes]
   (let [options (merge defaults options)
         initial-value-nodes (map mapentry->node initial-values)
-        provider-nodes (map node->metamap (remove nil? nodes))
+        provider-nodes (map node-meta (remove nil? nodes))
         {:keys [lazy? layer-strat leaf-strat]} options
         r (run-layers layer-strat leaf-strat lazy?
                       (u/layers (concat initial-value-nodes provider-nodes)))]
     (if lazy? (derefmap/->DerefMap r) r)))
 
-(defn- key->sym [k] (symbol (name k)))
+(defn- key->sym [k]
+  (if (keyword? k)
+    (symbol (name k))
+    (mapv key->sym k)))
 
 (defn- layer-elt-let-expr [elt]
-  [(:varname elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
+  [(:value elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
 
 (defn- layer->let-row [layer-strat leaf-strat lazy? layer]
   (let [bounds (mapv (comp key->sym :provides) layer)
@@ -169,7 +169,7 @@
 
 (defn run-inline [initial-values options nodes]
   (let [{:keys [lazy? layer-strat leaf-strat]} options
-        initial-value-nodes (map mapentry->nodem initial-values)
+        initial-value-nodes (map mapentry->node initial-values)
         provider-nodes (map (fn [node] (merge (meta (deref (resolve node))) {:value node})) nodes)
         nodes (concat initial-value-nodes provider-nodes)
         layers (rest (u/layers nodes))]
@@ -178,8 +178,8 @@
                  (mapcat (partial layer->let-row layer-strat leaf-strat lazy?)
                          layers)))
        (wrap-when ~lazy? derefmap/->DerefMap
-                  (hash-map ~@(interleave (map :provides nodes)
-                                          (map (comp key->sym :provides) nodes)))))))
+                  (hash-map ~@(interleave (flatten (map :provides nodes))
+                                          (flatten (map (comp key->sym :provides) nodes))))))))
 
 (defn good-map? [m]
   (or (and (map? m) (every? keyword? (keys m)))
@@ -224,26 +224,35 @@
   [initial-values & nodes]
   `(run-graph-strategy* defaults ~initial-values ~@nodes))
 
+(def ^java.util.WeakHashMap whm (java.util.WeakHashMap.))
+
 (defn compile-graph-strategy
   "Create a function from the graph functions in nodes, using options options.
    The resulting function accepts as its first argument map that must
    contain keys corresponding to all the parameters necessary to run
    the graph to completion."
   [options & nodes]
-  (let [mnodes (map node->metamap nodes)
-        {:keys [layer-strat leaf-strat lazy?]} options
-        [layers required] (u/layers-and-required (map node->metamap nodes))
-        rsyms (map key->sym required)]
-    (eval
-     `(fn [m#]
-        (assert (set/subset? ~required (set (keys m#))))
-        (let [{:keys [~@rsyms]} m#
-              ~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
-          (hash-map ~@(interleave (concat required (map :provides mnodes))
-                                  (concat rsyms
-                                          (map (comp key->sym :provides) mnodes)))))))))
+  (let [syms2nodes (zipmap (repeatedly gensym) (map node-meta nodes))]
+    (doseq [[sym node] syms2nodes]
+      (.put whm (keyword sym) (:value node)))
+    (let [mnodes (map (fn [[sym node]] (assoc node :value sym)) syms2nodes)
+          {:keys [layer-strat leaf-strat lazy?]} options
+          [layers required] (u/layers-and-required mnodes)
+          required (sort required)
+          rsyms (map key->sym required)
+          new-provides (sort (map :provides mnodes))
+          f (eval `(fn [~@rsyms]
+                     (let [~@(mapcat (fn [sym] [sym `(.get whm ~(keyword sym))]) (keys syms2nodes))
+                           ~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
+                       ~(vec (key->sym new-provides)))))]
+      (with-meta f {:requires required :provides new-provides}))))
 
 (defn compile-graph
   "Like compile-graph-strategy, using default options."
   [& nodes]
   (apply compile-graph-strategy defaults nodes))
+
+(defn e-at-one [f]
+  (let [gsym (keyword (gensym))]
+    (.put whm gsym f)
+    (eval `(fn [x#] ((.get whm ~gsym) x#)))))
