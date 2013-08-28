@@ -66,6 +66,12 @@
   (mempty [self] '())
   (mempty? [self] (empty? self))
   (value [self] self)
+
+  clojure.lang.ArraySeq
+  (<> [self other] (into (empty self) (concat self other)))
+  (mempty [self] (empty self))
+  (mempty? [self] (empty? self))
+  (value [self] self)
   
   nil
   (<> [self other] other)
