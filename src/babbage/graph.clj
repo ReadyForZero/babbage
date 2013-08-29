@@ -235,9 +235,9 @@
 
 (defn compile-graph-strategy
   "Create a function from the graph functions in nodes, using options options.
-   The resulting function accepts as its first argument map that must
-   contain keys corresponding to all the parameters necessary to run
-   the graph to completion."
+   The resulting function accepts the arguments necessary to compute
+   all the results of all the nodes, and returns the values computed
+   by each node in a vector."
   [options & nodes]
   (let [syms2nodes (zipmap (repeatedly gensym) (map node-meta nodes))]
     (doseq [[sym node] syms2nodes]
