@@ -1,7 +1,7 @@
 (ns babbage.graph
   (:require [babbage.util :as u]
             [clojure.set :as set]
-            [babbage.derefmap :as derefmap]
+            [babbage.derefcolls :as derefcolls]
             [macroparser.bindings :as b]
             [macroparser.functions :as f]
             [macroparser.parsers :as p]
@@ -78,8 +78,8 @@
          (def ~(with-meta name attr-map)
            (with-meta f# ~fn-attr-map))))))
 
-(def defaults {:leaf-strat apply
-               :layer-strat pmap
+(def defaults {:leaf-strat `apply
+               :layer-strat `pmap
                :lazy? false})
 
 (defn- mapentry->node [[k v]]
@@ -98,9 +98,12 @@
     (let [r (wrap-when lazy? delay (leaf-strat (:value elt)
                                                (map (wrap-when lazy? (comp deref) result)
                                                     (:requires elt))))]
-      (if (keyword? (:provides elt))
-        [(:provides elt) r]
-        (zipmap (:provides elt) r)))))
+
+      (cond
+       (keyword? (:provides elt)) [(:provides elt) r]
+       lazy? (zipmap (:provides elt) (for [i (range (count (:provides elt)))]
+                                       (delay (nth (deref r) i))))
+       :else (zipmap (:provides elt) r)))))
 
 (defn- run-layer [layer-strat leaf-strat lazy? result layer]
   (if (= 1 (count layer))
@@ -121,6 +124,14 @@
     (when (not (every? keyword? requires))
       (throw (Exception. (str "Node has invalid requires metadata: " node (meta node)))))
     (assoc m :value node)))
+
+(defn unique-provides! [provides]
+  (println provides)
+  (let [unique (set provides)]
+    (assert (= (count unique) (count provides))
+            (let [f (vec (filter (fn [[k v]] (not= v 1)) (frequencies provides)))]
+              (str "Error: attempting to provide the same value(s) multiple times: " f))))
+  provides)
 
 (defn run-graph-strategy
   "Run the graph fns in \"nodes\", supplying them with initial values
@@ -148,10 +159,12 @@
   (let [options (merge defaults options)
         initial-value-nodes (map mapentry->node initial-values)
         provider-nodes (map node-meta (remove nil? nodes))
-        {:keys [lazy? layer-strat leaf-strat]} options
-        r (run-layers layer-strat leaf-strat lazy?
-                      (u/layers (concat initial-value-nodes provider-nodes)))]
-    (if lazy? (derefmap/->DerefMap r) r)))
+        nodes (concat initial-value-nodes provider-nodes)]
+    (unique-provides! (flatten (map :provides nodes)))
+    (let [{:keys [lazy? layer-strat leaf-strat]} options
+          r (run-layers layer-strat leaf-strat lazy?
+                        (u/layers (concat initial-value-nodes provider-nodes)))]
+      (if lazy? (derefcolls/->DerefMap r) r))))
 
 (defn- key->sym [k]
   (if (keyword? k)
@@ -161,18 +174,29 @@
 (defn- layer-elt-let-expr [elt]
   [(:value elt) (if (not-empty (:requires elt)) (mapv key->sym (:requires elt)) '())])
 
+;; break me up, please.
 (defn- layer->let-row [layer-strat leaf-strat lazy? layer]
   (let [bounds (mapv (comp key->sym :provides) layer)
         bindings (mapv layer-elt-let-expr layer)]
-    (if (= 1 (count bounds))
-      [(first bounds) `(wrap-when ~lazy? delay
-                                  (~leaf-strat ~(ffirst bindings)
-                                               (wrap-when ~lazy? (map deref) ~(second (first bindings)))))]
-      [bounds `(~layer-strat (fn [f# args#]
-                               (wrap-when ~lazy? delay
-                                          (~leaf-strat f# (wrap-when ~lazy? (map deref) args#))))
-                             ~(mapv first bindings)
-                             ~(mapv second bindings))])))
+    (if lazy?
+      (let [simple (mapv (fn [s] (if (sequential? s) (gensym) s)) bounds)]
+        (if (= 1 (count bounds))
+          (let [b (first bounds) s (first simple)
+                single-expr `(delay (~leaf-strat ~(ffirst bindings) (map deref ~(second (first bindings)))))]
+            (if (= b s)
+              [b single-expr]
+              (concat [s single-expr]
+                      (apply concat (for [i (range (count b))]
+                                      `[~(nth b i) (delay (nth (deref ~s) ~i))])))))
+          (concat [simple `(~layer-strat (fn [f# args#] (delay (~leaf-strat f# (map deref args#))))
+                                         ~(mapv first bindings) ~(mapv second bindings))]
+                  (apply concat (for [[b s] (map vector bounds simple)]
+                                  (when-not (= b s)
+                                    (apply concat (for [[b i] (map vector b (range))]
+                                                    `[~b (delay (nth (deref ~s) ~i))]))))))))
+      (if (= 1 (count bounds))
+        [(first bounds) `(~leaf-strat ~(ffirst bindings) ~(second (first bindings)))]
+        [bounds `(~layer-strat ~leaf-strat ~(mapv first bindings) ~(mapv second bindings))]))))
 
 (defn run-inline [initial-values options nodes]
   (let [{:keys [lazy? layer-strat leaf-strat]} options
@@ -180,11 +204,12 @@
         provider-nodes (map (fn [node] (merge (meta (deref (resolve node))) {:value node})) nodes)
         nodes (concat initial-value-nodes provider-nodes)
         layers (rest (u/layers nodes))]
+    (unique-provides! (flatten (map :provides nodes)))
     `(let ~(vec (concat
                  (mapcat (fn [[k v]] `[~(symbol (name k)) (wrap-when ~lazy? delay ~v)]) initial-values)
                  (mapcat (partial layer->let-row layer-strat leaf-strat lazy?)
                          layers)))
-       (wrap-when ~lazy? derefmap/->DerefMap
+       (wrap-when ~lazy? derefcolls/->DerefMap
                   (hash-map ~@(interleave (flatten (map :provides nodes))
                                           (flatten (map (comp key->sym :provides) nodes))))))))
 
@@ -239,23 +264,22 @@
   [options & nodes]
   (let [syms (repeatedly (count nodes) gensym)
         mnodes (map (fn [node sym] (assoc (node-meta node) :value sym)) nodes syms)
-        {:keys [layer-strat leaf-strat lazy?]} options
+        {:keys [layer-strat leaf-strat lazy?]} (merge defaults options)
         [layers required] (u/layers-and-required mnodes)
         required (sort required)
         rsyms (map key->sym required)
-        new-provides (sort (map :provides mnodes))
-        f (apply
-           (eval
-            `(fn [~@syms]
-               (fn [~@rsyms]
-                 (wrap-when ~lazy?
-                   (let [~@(mapcat (fn [s] [s `(delay ~s)]) rsyms)])
-                   (let [~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %)
-                                   layers)]
-                     (if ~lazy?
-                       (map deref ~(mapv key->sym new-provides))
-                       ~(mapv key->sym new-provides)))))))
-           nodes)]
+        new-provides (sort (unique-provides! (flatten (map :provides mnodes))))
+        f (apply (eval
+                  `(fn [~@syms]
+                     (fn [~@rsyms]
+                       (wrap-when ~lazy?
+                                  (let [~@(mapcat (fn [s] [s `(delay ~s)]) rsyms)])
+                                  (let [~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %)
+                                                  layers)]
+                                    (if ~lazy?
+                                      (derefcolls/->DerefSeq ~(mapv key->sym new-provides))
+                                      ~(mapv key->sym new-provides)))))))
+                 nodes)]
     (with-meta f {:requires required :provides new-provides})))
 
 (defn compile-graph
