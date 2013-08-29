@@ -231,28 +231,26 @@
   [initial-values & nodes]
   `(run-graph-strategy* defaults ~initial-values ~@nodes))
 
-(def ^java.util.WeakHashMap whm (java.util.WeakHashMap.))
-
 (defn compile-graph-strategy
   "Create a function from the graph functions in nodes, using options options.
    The resulting function accepts the arguments necessary to compute
    all the results of all the nodes, and returns the values computed
    by each node in a vector."
   [options & nodes]
-  (let [syms2nodes (zipmap (repeatedly gensym) (map node-meta nodes))]
-    (doseq [[sym node] syms2nodes]
-      (.put whm (keyword sym) (:value node)))
-    (let [mnodes (map (fn [[sym node]] (assoc node :value sym)) syms2nodes)
-          {:keys [layer-strat leaf-strat lazy?]} options
-          [layers required] (u/layers-and-required mnodes)
-          required (sort required)
-          rsyms (map key->sym required)
-          new-provides (sort (map :provides mnodes))
-          f (eval `(fn [~@rsyms]
-                     (let [~@(mapcat (fn [sym] [sym `(.get whm ~(keyword sym))]) (keys syms2nodes))
-                           ~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
-                       ~(vec (key->sym new-provides)))))]
-      (with-meta f {:requires required :provides new-provides}))))
+  (let [syms (repeatedly (count nodes) gensym)
+        mnodes (map (fn [node sym] (assoc (node-meta node) :value sym)) nodes syms)
+        {:keys [layer-strat leaf-strat lazy?]} options
+        [layers required] (u/layers-and-required mnodes)
+        required (sort required)
+        rsyms (map key->sym required)
+        new-provides (sort (map :provides mnodes))
+        f (apply (eval
+                  `(fn [~@syms]
+                     (fn [~@rsyms]
+                       (let [~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
+                         ~(vec (key->sym new-provides))))))
+                 nodes)]
+    (with-meta f {:requires required :provides new-provides})))
 
 (defn compile-graph
   "Like compile-graph-strategy, using default options."
