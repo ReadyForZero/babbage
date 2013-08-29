@@ -244,12 +244,18 @@
         required (sort required)
         rsyms (map key->sym required)
         new-provides (sort (map :provides mnodes))
-        f (apply (eval
-                  `(fn [~@syms]
-                     (fn [~@rsyms]
-                       (let [~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %) layers)]
-                         ~(vec (key->sym new-provides))))))
-                 nodes)]
+        f (apply
+           (eval
+            `(fn [~@syms]
+               (fn [~@rsyms]
+                 (wrap-when ~lazy?
+                   (let [~@(mapcat (fn [s] [s `(delay ~s)]) rsyms)])
+                   (let [~@(mapcat #(layer->let-row layer-strat leaf-strat lazy? %)
+                                   layers)]
+                     (if ~lazy?
+                       (map deref ~(mapv key->sym new-provides))
+                       ~(mapv key->sym new-provides)))))))
+           nodes)]
     (with-meta f {:requires required :provides new-provides})))
 
 (defn compile-graph
