@@ -126,7 +126,6 @@
     (assoc m :value node)))
 
 (defn unique-provides! [provides]
-  (println provides)
   (let [unique (set provides)]
     (assert (= (count unique) (count provides))
             (let [f (vec (filter (fn [[k v]] (not= v 1)) (frequencies provides)))]
