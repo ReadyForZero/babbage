@@ -78,8 +78,8 @@
          (def ~(with-meta name attr-map)
            (with-meta f# ~fn-attr-map))))))
 
-(def defaults {:leaf-strat `apply
-               :layer-strat `pmap
+(def defaults {:leaf-strat apply
+               :layer-strat pmap
                :lazy? false})
 
 (defn- mapentry->node [[k v]]
@@ -98,7 +98,6 @@
     (let [r (wrap-when lazy? delay (leaf-strat (:value elt)
                                                (map (wrap-when lazy? (comp deref) result)
                                                     (:requires elt))))]
-
       (cond
        (keyword? (:provides elt)) [(:provides elt) r]
        lazy? (zipmap (:provides elt) (for [i (range (count (:provides elt)))]
@@ -162,7 +161,7 @@
     (unique-provides! (flatten (map :provides nodes)))
     (let [{:keys [lazy? layer-strat leaf-strat]} options
           r (run-layers layer-strat leaf-strat lazy?
-                        (u/layers (concat initial-value-nodes provider-nodes)))]
+                        (u/layers nodes))]
       (if lazy? (derefcolls/->DerefMap r) r))))
 
 (defn- key->sym [k]
