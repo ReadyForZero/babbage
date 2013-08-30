@@ -32,6 +32,10 @@
 (def foobar (compile-graph foo bar))
 (def foobar-l (compile-graph-strategy {:lazy? true} foo bar))
 
+(def bazquux (compile-graph baz quux))
+
+(expect Exception (compile-graph foobar bazquux))
+
 ;; arguments in alpha order, a then at then baz
 ;; results in alpha order, bar then foo
 (expect [3 4] (foobar 1 (atom []) 2))
