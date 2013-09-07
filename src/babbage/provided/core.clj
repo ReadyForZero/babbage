@@ -3,13 +3,20 @@
 (ns babbage.provided.core
   (:require [babbage.monoid :as monoid :refer [monoid]]
             [babbage.provided.histogram :as histogram]
-            [babbage.provided.gaussian])
+            [babbage.provided.gaussian]
+            [clojure.core :as clj])
   (:import [babbage.provided.gaussian Gaussian])
   (:use [babbage.core :only [defstatfn statfn]]
         babbage.util
         [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
-  (:refer-clojure :exclude [max min count set list complement]))
+  (:refer-clojure :exclude [max min count set list first last]))
+
+(def m-first (monoid (fn [a b] a) nil))
+(def m-last (monoid (fn [a b] b) nil))
+
+(defstatfn first m-first)
+(defstatfn last m-last)
 
 (def m-min (monoid clojure.core/min Double/POSITIVE_INFINITY))
 (defstatfn min m-min)

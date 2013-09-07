@@ -7,7 +7,7 @@
   (:use [clojure.algo.generic.functor :only [fmap]]
         [babbage.functors :only [tfmap]]
         [trammel.core :only [defconstrainedfn]])
-  (:refer-clojure :exclude [complement]))
+  (:refer-clojure :exclude [complement split-with]))
 
 (defn stats
   "Create a function for calculating groups of statistics.
@@ -160,6 +160,24 @@
   (case type
     :key (apply map-with-key extractor field-name sfunc1 sfuncs)
     :value (apply map-with-value extractor field-name sfunc1 sfuncs)))
+
+(defn split-with
+  "Group values together according to the result of split-fn.
+
+   Similar to histogram (but allows more flexible grouping), and to
+   computed-set (but shows up in the fields, rather than the sets).
+
+   Ex.:
+
+   (require '[babbage.provided.core :as p])
+   (def fields (stats :x (split-with #(int (/ % 10)) :every-ten
+                          p/first p/sum p/last)))
+   (calculate fields [{:x 1} {:x 11} {:x 3} {:x 2} {:x 14}])
+    -->  {:all {:every-ten {1 {:last 14, :sum 25, :first 11}, 0 {:last 2, :sum 6, :first 1}}}}"
+  [split-fn field-name sfunc1 & sfuncs]
+  (let [sfuncs (cons sfunc1 sfuncs)
+        prepared (apply stats identity sfuncs)]
+    (fn [m] (assoc m field-name (fn [v] {(split-fn v) (prepared v)})))))
 
 (defn sets
   "Describe subsets for which to calculate statistics.
