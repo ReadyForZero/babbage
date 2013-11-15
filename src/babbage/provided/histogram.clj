@@ -46,4 +46,5 @@
                          (sorted-map [(cut my-interval) (cut (+ my-interval width))] 1)
                          (sorted-map))
                        {:width width})
-                     (sorted-map)))))))
+                     (sorted-map)
+                     nil))))))

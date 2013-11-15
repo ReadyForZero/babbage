@@ -9,6 +9,27 @@
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [complement split-with]))
 
+(defn run-monoid [ent v mon]
+  (if (:whole-record mon)
+    ((:monoid-fun mon) ent v)
+    ((:monoid-fun mon) v)))
+
+(defn- run-sfuncs [ent v sfuncs]
+  (let [res (transient {})]
+    (doseq [sf sfuncs]
+      (if (:many sf)
+        (doseq [[k v] (run-monoid ent v sf)]
+          (assoc! res k v))
+        (assoc! res (:name sf) (run-monoid ent v sf))))
+    (persistent! res)))
+
+(defn- prep [sfuncs]
+  (let [[sfuncs & posts] (util/layers (map util/->prov sfuncs))]
+    (if (seq posts)
+      (fn [ent v] (let [m (run-sfuncs ent v sfuncs)]
+                   (util/post-processor m posts)))
+      (fn [ent v] (run-sfuncs ent v sfuncs)))))
+
 (defn stats
   "Create a function for calculating groups of statistics.
 
@@ -28,13 +49,80 @@
 
    It is not in general necessary to call the return value of this function directly."
   [extractor stat-func1 & stats-funcs]
-  (let [m (reduce (fn [acc f] (f acc)) {} (cons stat-func1 stats-funcs))
-        m (util/prepare-map m)]
-    (fn [ent]
-      (let [v (extractor ent)]
-        (tfmap (fn [f]
-                (if (-> f meta :whole-record)
-                  (f ent v) (f v))) m)))))
+  (let [f (prep (cons stat-func1 stats-funcs))]
+    (fn [ent] (f ent (extractor ent)))))
+
+(defn consolidate
+  "Merge several stats functions into one."
+  [sfunc & sfuncs]
+  (let [sfuncs (cons sfunc sfuncs)]
+    {:monoid-fun (prep sfuncs)
+     :whole-record true
+     :names (mapcat #(or (:names %)
+                         [(:name %)]) sfuncs)
+     :many true}))
+
+(defn- update-monoid-fun [sfunc whole not-whole]
+  (if (:whole-record sfunc)
+    (update-in sfunc [:monoid-fun] whole)
+    (update-in sfunc [:monoid-fun] not-whole)))
+
+(defn lift-seq
+  "Lift stats functions to operate over a seq of values:
+
+  > (calculate (stats :x p/count (lift-seq p/mean (rename p/count :seq-count))) [{:x [1 2]} {:x [2 3 7]}])
+  {:all {:count 2, :mean 3.0, :seq-count 5}}
+
+  Note the use of rename to avoid one count clobbering the other."
+  ([sfunc]
+     (update-monoid-fun sfunc
+                        (fn [mfun] #(reduce m/<> nil (map (partial mfun %1) %2)))
+                        (fn [mfun] #(reduce m/<> nil (map mfun %)))))
+  ([sf sf2 & sfs]
+     (lift-seq (apply consolidate sf sf2 sfs))))
+
+(defn nest
+  "Move the result of sfunc into an inner map."
+  [inner-name sfunc & sfuncs]
+  {:name inner-name
+   :whole-record true
+   :monoid-fun (prep (cons sfunc sfuncs))})
+
+(defn lift-seq-inner
+  "Lift stats functions to operate over a sequence of values, with the
+   result placed under field-name:
+
+   > (calculate (stats :x p/count (lift-seq-inner :inlist p/mean)) [{:x [1 2]} {:x [2 3 7]}])
+   {:all {:inlist {:mean 3.0}, :count 2}}"
+  [inner-name sfunc & sfuncs]
+  (nest inner-name (apply lift-seq sfunc sfuncs)))
+
+(defn rename
+  "Change the name under which the result for sf will be located."
+  [sf new-name]
+  (assoc sf :name new-name))
+
+(defn post
+  "Add an arbitrary post-processing function to a stats fn. E.g., to
+   count the number of unique elements:
+
+   (require '[babbage.provided.core :as p])
+   ;; actually already in provided
+   (def count-unique (post :count-unique count p/set))
+
+   Whereupon:
+
+   > (calculate (stats identity p/count-unique) [1 2 3 4 5 6 3 2 1 6 4 2 3 1 5 3 2 4])
+   {:all {:count-unique 6}}
+
+   If one were also interested in the identity of the unique values,
+   this could be more efficiently specifying a dependency and
+   post-processing function (see ratio in provided.core)."
+
+  [name f {:keys [monoid-fun]}]
+  {:name name
+   :monoid-fun (fn [x] (when x (let [v (monoid-fun x)]
+                                (m/delegate v f))))})
 
 (defmacro statfn
   "Create a function for computing statistics suitable for passing as
@@ -52,44 +140,28 @@
   Functions that are more than just simple wrappers will probably not
   be able to use this macro (or defstatfn): see e.g.
   map-{with-key,with-value,of}."
-  [fn-name monoidfn & {:keys [requires name]}]
-  (let [requires (cond (nil? requires) []
-                       (vector? requires) requires
-                       :else [requires])
-        threading-safe (map clojure.core/list requires)
-        kwname (or name (keyword fn-name))]
-    `(fn ~fn-name [m#] (-> m# ~@threading-safe (assoc ~kwname ~monoidfn)))))
+  [fn-name monoidfn & {:keys [name]}]
+  (let [kwname (or name (keyword fn-name))]
+    `{:name ~kwname
+      :monoid-fun ~monoidfn}))
 
 (defmacro defstatfn
   "Define a function for computing statistics suitable for passing as
    an argument to stats. Same as statfn, except that def is used to
    create a top-level var holding the function, and there is an
    additional :doc optional argument for supplying a docstring."
-   [fn-name monoidfn & {:keys [requires name doc]}]
-  `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :requires ~requires :name ~name)
+   [fn-name monoidfn & {:keys [name doc]}]
+  `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :name ~name)
                    {:doc ~doc})))
 
-(defn lift-seq
-  "Lift stats functions to operate over a sequence of values, with the
-   result placed under field-name:
-
-   > (calculate (stats :x p/count (lift-seq :inlist p/mean)) [{:x [1 2]} {:x [2 3 7]}])
-   {:all {:inlist {:mean 3.0, :sum 15, :count 5},
-          :count 2}}"
-  [field-name sfunc1 & sfuncs]
-  (let [sfuncs (cons sfunc1 sfuncs)
-        prepared (apply stats identity sfuncs)]
-    (fn [m] (assoc m field-name (fn [v] (when v (reduce m/<> (map prepared v))))))))
-
 (defn by
-   "Allows passing whole records to a stats function within a call to
-   stats. Similar to map-with-key and map-with-value, but without
-   creating a map."
-   [extractor field-name sfunc1 & sfuncs]
-  (let [sfuncs (cons sfunc1 sfuncs)
-        prepared (apply stats identity sfuncs)]
-    (fn [m] (assoc m field-name (with-meta (fn [ent v] (when v (prepared (extractor ent))))
-                                 {:whole-record true})))))
+  ([extractor sfunc]
+     (assoc (update-monoid-fun sfunc
+                               (fn [mfun] #(when %2 (mfun %1 (extractor %1))))
+                               (fn [mfun] #(when %2 (mfun (extractor %1)))))
+       :whole-record true))
+  ([extractor sfunc sfunc2 & sfuncs]
+     (by extractor (apply consolidate sfunc sfunc2 sfuncs))))
 
 (defn map-with-key
   "Add a map named field-name to the result map. The keys for the map
@@ -114,13 +186,11 @@
 
      {:mean 40, :type->balance {:foo {:mean 20}, :bar {:mean 56}}}"
   [key-extractor field-name value-sfunc1 & value-sfuncs]
-  (let [sfuncs (cons value-sfunc1 value-sfuncs)
-        prepared (apply stats identity sfuncs)]
-    (fn [m] (assoc m field-name (with-meta (fn [ent v]
-                                            (when v
-                                              {(key-extractor ent)
-                                               (prepared v)}))
-                                 {:whole-record true})))))
+  (let [f (prep (cons value-sfunc1 value-sfuncs))]
+    {:name field-name
+     :whole-record true
+     :monoid-fun (fn [ent v] (when v {(key-extractor ent)
+                                     (f ent v)}))}))
 
 (defn map-with-value
   "Add a map named field-name to the result map. The values for the
@@ -145,12 +215,10 @@
 
      {:count-binned {:foo 20, :bar 13}, :type->balance {:foo {:mean 20}, :bar {:mean 56}}}"
   [value-extractor field-name value-sfunc1 & value-sfuncs]
-  (let [sfuncs (cons value-sfunc1 value-sfuncs)
-        prepared (apply stats value-extractor sfuncs)]
-    (fn [m] (assoc m field-name (with-meta (fn [ent v]
-                                            (when v
-                                              {v (prepared ent)}))
-                                 {:whole-record true})))))
+  (let [f (prep (cons value-sfunc1 value-sfuncs))]
+    {:name field-name
+     :whole-record true
+     :monoid-fun (fn [ent v] (when v {v (f ent (value-extractor ent))}))}))
 
 (defconstrainedfn map-of
   "Add a map named field-name to the result map. With type :key, as
@@ -161,7 +229,7 @@
     :key (apply map-with-key extractor field-name sfunc1 sfuncs)
     :value (apply map-with-value extractor field-name sfunc1 sfuncs)))
 
-(defn split-with
+(defn split-input
   "Group values together according to the result of split-fn.
 
    Similar to histogram (but allows more flexible grouping), and to
@@ -170,14 +238,14 @@
    Ex.:
 
    (require '[babbage.provided.core :as p])
-   (def fields (stats :x (split-with #(int (/ % 10)) :every-ten
+   (def fields (stats :x (split-input #(int (/ % 10)) :every-ten
                           p/first p/sum p/last)))
    (calculate fields [{:x 1} {:x 11} {:x 3} {:x 2} {:x 14}])
     -->  {:all {:every-ten {1 {:last 14, :sum 25, :first 11}, 0 {:last 2, :sum 6, :first 1}}}}"
   [split-fn field-name sfunc1 & sfuncs]
-  (let [sfuncs (cons sfunc1 sfuncs)
-        prepared (apply stats identity sfuncs)]
-    (fn [m] (assoc m field-name (fn [v] {(split-fn v) (prepared v)})))))
+  (let [prepared (apply stats identity sfunc1 sfuncs)]
+    {:monoid-fun (fn [v] {(split-fn v) (prepared v)})
+     :name field-name}))
 
 (defn sets
   "Describe subsets for which to calculate statistics.

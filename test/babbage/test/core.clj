@@ -1,5 +1,5 @@
 (ns babbage.test.core
-  (:refer-clojure :exclude [count set max list min complement])
+  (:refer-clojure :exclude [count set max list min complement first last])
   (:use [expectations]
         babbage.core
         babbage.provided.core))
@@ -21,12 +21,6 @@
 (def low-sets {:low :low?
                :high (clojure.core/complement :low?)})
 
-;;; only dependent values---ratio doesn't know how to add what's required.
-(expect Exception (stats :x (ratio :max :min)))
-(expect Exception (stats :x (ratio :max :min) max))
-;; mean does
-(expect (stats :x mean))
-
 ;; non-nested, no subsets.
 (let [r (:all (calculate (sets) v-extrema values))]
   (expect v-mean (:mean r))
@@ -47,12 +41,13 @@
   (expect 10 (-> r :status-to-x :good :min))
   (expect 30.0 (-> r :status-to-x :bad :mean)))
 
-(let [r (:all (calculate (stats :v count (by #(when (= :good (:status %)) %) :good-status count)) values))]
+(let [r (:all (calculate (stats :v count (nest :good-status
+                                               (by #(when (= :good (:status %)) %) count))) values))]
   (expect 6 (:count r))
   (expect 4 (-> r :good-status :count)))
 
 (def fields {:v v-extrema
-             :x (stats :x mean (histogram 10) count (ratio :max :mean) max)})
+             :x (stats :x mean (histogram 10) count max (ratio :max :mean))})
 
 (let [r (calculate (sets status-sets) fields values)
       with-subsets (calculate (-> status-sets
@@ -123,19 +118,18 @@
 ;;;;;;;;;;;;; examples from readme are accurate!
 
 (expect {:all {:the-result {:mean 1.5,
-                            :count 2,
                             :sum 3}}}
         (calculate {:the-result (stats :x sum mean)}
                    [{:x 1} {:x 2}]))
 
-(expect {:all {:x-result {:count 3, :mean 2.0,  :sum 6},
-               :y-result {:count 2, :mean 12.5, :sum 25}}}
+(expect {:all {:x-result {:mean 2.0,  :sum 6},
+               :y-result {:mean 12.5}}}
         (calculate
          {:x-result (stats :x sum mean)
           :y-result (stats :y mean)}
          [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]))
 
-(expect {:all {:both {:count 4, :mean 7.75, :sum 31}}}
+(expect {:all {:both {:mean 7.75}}}
         (calculate
         {:both (stats #(+ (or (:x %) 0)
                           (or (:y %) 0))
@@ -143,29 +137,28 @@
         [{:x 1 :y 10} {:x 2} {:x 3} {:y 15}]))
 
 (expect {:all {:mean 16.6,
-               :users {:unique 3, :count-binned {1 3, 3 1, 4 1}},
-               :sum 83,
-               :count 5}}
+               :users {:unique 3},
+               :sum 83,}}
         (calculate
-         (stats :sale mean sum (by :user_id :users count-unique))
+         (stats :sale mean sum (nest :users (by :user_id (rename count-unique :unique))))
          [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
           {:sale 15 :user_id 1} {:sale 13 :user_id 3}
           {:sale 25 :user_id 1}]))
 
 (expect {:all {:mean 16.6,
-               :user->sales {3 {:mean 13.0, :count 1, :sum 13},
-                             4 {:mean 20.0, :count 1, :sum 20},
-                             1 {:mean (/ 50 3.0), :count 3, :sum 50}},
-               :sum 83,
-               :count 5}} (calculate
-                           (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
-                           [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
-                            {:sale 15 :user_id 1} {:sale 13 :user_id 3}
-                            {:sale 25 :user_id 1}]))
+               :user->sales {3 {:mean 13.0, :sum 13},
+                             4 {:mean 20.0, :sum 20},
+                             1 {:mean (/ 50 3.0), :sum 50}},
+               :sum 83}}
+        (calculate
+         (stats :sale mean sum (map-with-key :user_id :user->sales mean sum))
+         [{:sale 10 :user_id 1} {:sale 20 :user_id 4}
+          {:sale 15 :user_id 1} {:sale 13 :user_id 3}
+          {:sale 25 :user_id 1}]))
 
 
-(expect {:all   {:both {:mean 7.75, :sum 31, :count 4}},
-         :has-y {:both {:mean 13.0, :sum 26, :count 2}}}
+(expect {:all   {:both {:mean 7.75}},
+         :has-y {:both {:mean 13.0}}}
         (calculate
          (sets {:has-y :y})
          {:both (stats #(+ (or (:x %) 0)
@@ -181,28 +174,30 @@
 
 (def my-fields {:both (stats #(+ (or (:x %) 0) (or (:y %) 0)) mean)})
 
-(expect {:Shas-y-and-not-goodZ {:both {:mean 16.0, :sum 16, :count 1}},
-         :Shas-y-and-goodZ     {:both {:mean 5.0,  :sum 5,  :count 1}},
-         :good                 {:both {:mean 6.0,  :sum 12, :count 2}},
-         :has-y                {:both {:mean 10.5, :sum 21, :count 2}},
-         :all                  {:both {:mean 8.0,  :sum 32, :count 4}},
-         :not-good             {:both {:mean 10.0, :sum 20, :count 2}}}
+(expect {:Shas-y-and-not-goodZ {:both {:mean 16.0}},
+         :Shas-y-and-goodZ     {:both {:mean 5.0}},
+         :good                 {:both {:mean 6.0}},
+         :has-y                {:both {:mean 10.5}},
+         :all                  {:both {:mean 8.0}},
+         :not-good             {:both {:mean 10.0}}}
         (calculate my-sets my-fields [{:x 1 :good? true :y 4}
                                       {:x 4 :good? false}
                                       {:x 7 :good? true}
                                       {:x 10 :good? false :y 6}]))
 
-(expect {:all {:count-binned-normalized {1 0.5,
-                                         3 0.5}
+(expect {:all {:normal-counts {1 0.5,
+                               3 0.5}
                :count 4
                :count-binned {1 2, 3 2}}}
-        (calculate (stats :x count-binned-normalized)
+        (calculate (stats :x count count-binned (count-binned-normalized :normal-counts
+                                                                         :count
+                                                                         :count-binned))
                    [{:x 1} {:x 3} {:x 1} {:x 3}]))
 
 (expect {:all {:count-binned-normalized {1 0.25,
                                          3 0.75}
                :count 8
                :count-binned {1 2, 3 6}}}
-        (calculate (stats :x count-binned-normalized)
+        (calculate (stats :x count count-binned count-binned-normalized*)
                    [{:x 1} {:x 3} {:x 1} {:x 3}
                     {:x 3} {:x 3} {:x 3} {:x 3}]))

@@ -1,10 +1,8 @@
 (ns babbage.util
   (:require [babbage.monoid :as m]
-            babbage.mseq
             [clojure.set :as set]
             [macroparser.functions :as f]
-            [the.parsatron :as parsatron])
-  (:import babbage.mseq.MSeq))
+            [the.parsatron :as parsatron]))
 
 (defmacro if-ns-avail [req then & [else]]
   (if (try (eval req) true
@@ -154,7 +152,7 @@
      (circular? dependent depmap) (throw (Exception. "Cannot have circular dependencies."))
      (not-empty (still-required independent dependent))
      (throw (Exception. (str "Cannot depend on unproduced values: " (still-required independent dependent))))
-     :else (concat [independent] (group-deps (set (map :provides independent)) dependent)))))
+     :else (concat [independent] (group-deps (set (mapcat (comp ->set :provides) independent)) dependent)))))
 
 (defn layers-and-required
   [nodes]
@@ -168,19 +166,25 @@
                       (group-deps (set/union required (set (map :provides independent))) dependent))
               required]))))
 
-(defn prepare-map
-  "Create an MSeq structure out of a map of name/stat-fn key-value
-   pairs, so that functions that depend on prior results only get run
-   when requesting the final value."
-  [m]
-  (if-not (map? m)
-    m
-    (when-let [nodes (seq (map (fn [[k v]] {:provides k
-                                           :requires (-> v meta :requires)
-                                           :value (prepare-map v)}) m))]
-      (let [layers (layers nodes)
-            m (->> (first layers) (map (juxt :provides :value)) (into {}))]
-        (if (= 1 (clojure.core/count layers))
-          (MSeq. (clojure.core/list m))
-          (let [groups (map transform-group (rest layers))]
-            (MSeq. (list* m groups))))))))
+(defn ->prov [m]
+  (if (:many m)
+    (assoc m :provides (:names m))
+    (assoc m :provides [(:name m)])))
+
+(deftype PostProcessing [ms processors]
+  m/Monoid
+  (<> [self other]
+    (if (nil? other)
+      self
+      (let [^PostProcessing other other]
+        (PostProcessing. (m/<> ms (.ms other)) processors))))
+  (mempty? [self] (or (empty? ms) (m/mempty? ms)))
+  (mempty [self] (PostProcessing. nil nil))
+  (value [self] (let [m (m/value ms)]
+                  (reduce (fn [acc f] (f acc)) m processors))))
+
+(defn ->processor [processor-layer]
+  (apply comp (map :processor processor-layer)))
+
+(defn post-processor [ms processors]
+  (PostProcessing. ms (map ->processor processors)))

@@ -4,13 +4,16 @@
   (:require [babbage.monoid :as monoid :refer [monoid]]
             [babbage.provided.histogram :as histogram]
             [babbage.provided.gaussian]
-            [clojure.core :as clj])
+            [clojure.core :as clj]
+            [clojure.set :as s])
   (:import [babbage.provided.gaussian Gaussian])
-  (:use [babbage.core :only [defstatfn statfn]]
+  (:use [babbage.core :only [defstatfn statfn stats post]]
         babbage.util
         [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [max min count set list first last]))
+
+(set! *warn-on-reflection* true)
 
 (def m-first (monoid (fn [a b] a) nil))
 (def m-last (monoid (fn [a b] b) nil))
@@ -53,48 +56,46 @@
 
 ;; "mean" is dependent on other computed statistics, and has the
 ;; computation function defined instead of a monoid.
-(defnmeta d-mean {:requires #{:count :sum}} [m]
-  (when-let [count (get m :count)]
-    (when-not (zero? count)
-      (/ (get m :sum) (double count)))))
+(deftype Mean [s c]
+  monoid/Monoid
+  (<> [self other] (if other
+                     (let [^Mean other other]
+                       (Mean. (+ s (.s other))
+                              (+ c (.c other))))
+                     self))
+  (mempty [self] nil)
+  (mempty? [self] (== (.c self) 0))
+  (value [self] (when-not (== c 0)
+                  (/ s  (double c)))))
 
-(defstatfn mean d-mean :requires [count sum])
+(defn mean-m [x] (when x (Mean. x 1)))
+
+(defstatfn mean mean-m)
 
 ;; Keep track of counts for each item. This result of this is like 'frequencies'.
 (defstatfn count-binned
   (fn [o]
     (if (nil? o) (sorted-map) (sorted-map o (m-sum 1)))))
 
-;; Keeping track of unique counts is dependent on keeping track of the seen ones.
-(defnmeta d-count-unique {:requires #{:count-binned}} [m]
-  (.count (get m :count-binned)))
+(def count-unique (post :count-unique clj/count set))
 
-(defstatfn count-unique d-count-unique :requires count-binned :name :unique)
+(defn count-binned-normalized [result-name count-name bin-name]
+  {:requires [count-name bin-name]
+   :name result-name
+   :processor (fn [m] (let [c (count-name m)]
+                       (assoc m result-name (fmap #(/ (double %) c) (bin-name m)))))})
 
-(defnmeta d-count-binned-normalized {:requires #{:count-binned :count}}
-  [m]
-  (let [c (:count m)
-        bins (:count-binned m)]
-    (fmap #(/ (double %) c) bins)))
+(def count-binned-normalized* (count-binned-normalized :count-binned-normalized
+                                                       :count :count-binned))
 
-(defstatfn count-binned-normalized d-count-binned-normalized :requires [count-binned count])
-
-;; Keep track of a ratio of one measure to another. This does not use defnmeta because the
-;; requirements are determined from the arguments.
-(defn d-ratio
-  [of to]
-  (let [requirements (if (keyword? to) #{of to} #{of})
-        tofn (if (number? to) (fn [_] to) (fn [m] (get m to)))]
-    (with-meta
-      (fn [m] (when-let [denom (double (tofn m))] (/ (get m of) denom)))
-      {:requires requirements})))
-
-(defconstrainedfn ratio
-  [of to & [ratio-name]]
-  [(keyword? of) (or (number? to) (keyword? to)) (or (nil? ratio-name) (keyword? ratio-name))]
-  (let [to-s (if (number? to) (str to) (name to))
-        key (or ratio-name (keyword (str (name of) "-to-" to-s)))]
-    (statfn ratio (d-ratio of to) :name key)))
+(defn ratio [of to & [ratio-name]]
+  (let [key (or ratio-name (keyword (str (name of) "-to-" (if (number? to) to (name to)))))]
+    {:requires (if (number? to) [of] [of to])
+     :name key
+     :processor (if (number? to)
+                  (let [to (double to)]
+                    (fn [m] (assoc m key (/ (get m of) to))))
+                  (fn [m] (assoc m key (/ (double (get m of)) (get m to)))))}))
 
 (defn histogram
   "Given a width, returns a function that results in a histogram, where buckets are of 'width' width."

@@ -1,7 +1,8 @@
 ;; Owner: wolfson@readyforzero.com
 ;; protocol for combining ops
 (ns babbage.monoid
-  (:require [clojure.set :as set])
+  (:require [clojure.set :as set]
+            [potemkin])
   (:use [clojure.algo.generic.functor :only [fmap]]))
 
 (defprotocol Monoid
@@ -10,22 +11,38 @@
   (mempty? [self] "Is this the zero element?")
   (value [self] "return the wrapped value"))
 
-(defn mk-monoid [op my-val zero]
-  (reify Monoid
-    (<> [self other]
-      (cond (mempty? other) self
-            (mempty? self) other
-            :otherwise (mk-monoid op (op my-val (value other)) zero)))
-    (mempty [self]
-      (mk-monoid op zero zero))
-    (mempty? [self]
-      (or (nil? my-val)
-          (= zero my-val)))
-    (value [self]
-      my-val)))
+(deftype MkMonoid [op my-val zero val-fn]
+  Monoid
+  (<> [self other]
+    (cond (mempty? self) other
+          (mempty? other) self
+          :otherwise (let [^MkMonoid other other]
+                       (MkMonoid. op (op my-val (.my-val other)) zero val-fn))))
+  (mempty [self] (MkMonoid. op zero zero val-fn))
+  (mempty? [self]
+    (or (nil? my-val)
+        (= zero my-val)))
+  (value [self] (if val-fn (val-fn my-val) my-val)))
 
-(defn monoid [op zero]  
-  (fn ([& [my-val]] (mk-monoid op (if (nil? my-val) zero my-val) zero))))
+(def mk-monoid ->MkMonoid)
+
+(defn monoid [op zero & [val-fn]]
+  (fn ([my-val] (mk-monoid op (if (nil? my-val) zero my-val) zero val-fn))
+    ([] (mk-monoid op zero zero val-fn))))
+
+(defn delegate [v f]
+  (MkMonoid. <> v (mempty v) f))
+
+(deftype Fun [f]
+  Monoid
+  (<> [self other]
+    (if (nil? other) self
+        (let [^Fun other other
+              of (.f other)]
+          (Fun. (fn [x] (<> (f x) (of x)))))))
+  (mempty [self] (Fun. identity))
+  (mempty? [self] false) ;; no good way to test for this.
+  (value [self] f))
 
 (extend-protocol Monoid
   ;; the accumulators library treated maps as collections of values:
@@ -34,7 +51,8 @@
   clojure.lang.IPersistentMap
   (<> [self other] (merge-with <> self other))
   (mempty [self] (fmap mempty self))
-  (mempty? [self] (every? mempty? (vals self)))
+  (mempty? [self] (every? mempty?
+                          (vals self)))
   (value [self] (fmap value self))
 
   clojure.lang.IPersistentList

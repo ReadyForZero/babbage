@@ -1,8 +1,6 @@
 (ns babbage.functors
   (:require [babbage.util :as u]
-            [babbage.mseq]
-            [clojure.algo.generic.functor :as f])
-  (:import [babbage.mseq MSeq]))
+            [clojure.algo.generic.functor :as f]))
 
 ;; transient, and reducers-based, functor implementations, falling back to regular fmap.
 
@@ -35,11 +33,6 @@
      (defmethod pfmap clojure.lang.IPersistentVector
        [f v]
        (into (empty v) (r/map f v)))
-     (defmethod pfmap MSeq [f ^MSeq mseq]
-       (let [ms (.ms mseq)]
-         (if (seq ms)
-           (MSeq. (list* (pfmap f (first ms)) (rest ms)))
-           (MSeq. []))))
      (defmethod pfmap :default
        [f v]
        (f/fmap f v)))
@@ -57,13 +50,6 @@
       (if-let [[k v] (first kvs)]
         (recur (assoc! acc k (f v)) (next kvs))
         (persistent! acc)))))
-
-(defmethod tfmap MSeq
-  [f ^MSeq mseq]
-  (let [ms (.ms mseq)]
-    (if (seq ms)
-      (MSeq. (list* (tfmap f (first ms)) (rest ms)))
-      (MSeq. []))))
 
 (defmethod f/fmap clojure.lang.LazySeq
   [f v]

@@ -51,7 +51,8 @@
                               (b/m-sum 0) (b/m-sum)
                               (b/m-max) (b/m-min)
                               ((h/m-histogram 10))
-                              (b/m-prod 1) (b/m-prod)])
+                              (b/m-prod 1)
+                              (b/m-prod)])
 ;; emptiness
 (expect true (every? mempty? empty-things))
 ;; a map whose values are empty is also empty.
