@@ -188,3 +188,25 @@
 
 (defn post-processor [ms processors]
   (PostProcessing. ms (map ->processor processors)))
+
+
+(defn run-monoid [ent v mon]
+  (if (:whole-record mon)
+    ((:monoid-fun mon) ent v)
+    ((:monoid-fun mon) v)))
+
+(defn- run-sfuncs [ent v sfuncs]
+  (let [res (transient {})]
+    (doseq [sf sfuncs]
+      (if (:many sf)
+        (doseq [[k v] (run-monoid ent v sf)]
+          (assoc! res k v))
+        (assoc! res (:name sf) (run-monoid ent v sf))))
+    (persistent! res)))
+
+(defn prep [sfuncs]
+  (let [[sfuncs & posts] (layers (map ->prov sfuncs))]
+    (if (seq posts)
+      (fn [ent v] (let [m (run-sfuncs ent v sfuncs)]
+                   (post-processor m posts)))
+      (fn [ent v] (run-sfuncs ent v sfuncs)))))

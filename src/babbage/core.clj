@@ -9,27 +9,6 @@
         [trammel.core :only [defconstrainedfn]])
   (:refer-clojure :exclude [complement split-with]))
 
-(defn run-monoid [ent v mon]
-  (if (:whole-record mon)
-    ((:monoid-fun mon) ent v)
-    ((:monoid-fun mon) v)))
-
-(defn- run-sfuncs [ent v sfuncs]
-  (let [res (transient {})]
-    (doseq [sf sfuncs]
-      (if (:many sf)
-        (doseq [[k v] (run-monoid ent v sf)]
-          (assoc! res k v))
-        (assoc! res (:name sf) (run-monoid ent v sf))))
-    (persistent! res)))
-
-(defn- prep [sfuncs]
-  (let [[sfuncs & posts] (util/layers (map util/->prov sfuncs))]
-    (if (seq posts)
-      (fn [ent v] (let [m (run-sfuncs ent v sfuncs)]
-                   (util/post-processor m posts)))
-      (fn [ent v] (run-sfuncs ent v sfuncs)))))
-
 (defn stats
   "Create a function for calculating groups of statistics.
 
@@ -49,14 +28,14 @@
 
    It is not in general necessary to call the return value of this function directly."
   [extractor stat-func1 & stats-funcs]
-  (let [f (prep (cons stat-func1 stats-funcs))]
+  (let [f (util/prep (cons stat-func1 stats-funcs))]
     (fn [ent] (f ent (extractor ent)))))
 
 (defn consolidate
   "Merge several stats functions into one."
   [sfunc & sfuncs]
   (let [sfuncs (cons sfunc sfuncs)]
-    {:monoid-fun (prep sfuncs)
+    {:monoid-fun (util/prep sfuncs)
      :whole-record true
      :names (mapcat #(or (:names %)
                          [(:name %)]) sfuncs)
@@ -86,7 +65,7 @@
   [inner-name sfunc & sfuncs]
   {:name inner-name
    :whole-record true
-   :monoid-fun (prep (cons sfunc sfuncs))})
+   :monoid-fun (util/prep (cons sfunc sfuncs))})
 
 (defn lift-seq-inner
   "Lift stats functions to operate over a sequence of values, with the
@@ -186,7 +165,7 @@
 
      {:mean 40, :type->balance {:foo {:mean 20}, :bar {:mean 56}}}"
   [key-extractor field-name value-sfunc1 & value-sfuncs]
-  (let [f (prep (cons value-sfunc1 value-sfuncs))]
+  (let [f (util/prep (cons value-sfunc1 value-sfuncs))]
     {:name field-name
      :whole-record true
      :monoid-fun (fn [ent v] (when v {(key-extractor ent)
@@ -215,7 +194,7 @@
 
      {:count-binned {:foo 20, :bar 13}, :type->balance {:foo {:mean 20}, :bar {:mean 56}}}"
   [value-extractor field-name value-sfunc1 & value-sfuncs]
-  (let [f (prep (cons value-sfunc1 value-sfuncs))]
+  (let [f (util/prep (cons value-sfunc1 value-sfuncs))]
     {:name field-name
      :whole-record true
      :monoid-fun (fn [ent v] (when v {v (f ent (value-extractor ent))}))}))
@@ -243,8 +222,9 @@
    (calculate fields [{:x 1} {:x 11} {:x 3} {:x 2} {:x 14}])
     -->  {:all {:every-ten {1 {:last 14, :sum 25, :first 11}, 0 {:last 2, :sum 6, :first 1}}}}"
   [split-fn field-name sfunc1 & sfuncs]
-  (let [prepared (apply stats identity sfunc1 sfuncs)]
-    {:monoid-fun (fn [v] {(split-fn v) (prepared v)})
+  (let [f (util/prep (cons sfunc1 sfuncs))]
+    {:monoid-fun (fn [ent v] {(split-fn v) (f ent v)})
+     :whole-record true
      :name field-name}))
 
 (defn sets
