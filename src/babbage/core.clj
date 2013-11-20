@@ -2,6 +2,7 @@
 ;; calculating interesting stats
 (ns babbage.core
   (:require [babbage.monoid :as m]
+            [babbage.grouped :as grouped]
             [babbage.util :as util]
             [clojure.string :as str])
   (:use [clojure.algo.generic.functor :only [fmap]]
@@ -29,7 +30,7 @@
    It is not in general necessary to call the return value of this function directly."
   [extractor stat-func1 & stats-funcs]
   (let [f (util/prep (cons stat-func1 stats-funcs))]
-    (fn [ent] (f ent (extractor ent)))))
+    (fn [ent i] (f ent (extractor ent) i))))
 
 (defn consolidate
   "Merge several stats functions into one."
@@ -55,8 +56,8 @@
   Note the use of rename to avoid one count clobbering the other."
   ([sfunc]
      (update-monoid-fun sfunc
-                        (fn [mfun] #(reduce m/<> nil (map (partial mfun %1) %2)))
-                        (fn [mfun] #(reduce m/<> nil (map mfun %)))))
+                        (fn [mfun] #(reduce m/<> nil (map (fn [v] (mfun %1 v %3)) %2)))
+                        (fn [mfun] #(reduce m/<> nil (map (fn [v] (mfun v %2)) %1)))))
   ([sf sf2 & sfs]
      (lift-seq (apply consolidate sf sf2 sfs))))
 
@@ -98,10 +99,11 @@
    this could be more efficiently specifying a dependency and
    post-processing function (see ratio in provided.core)."
 
-  [name f {:keys [monoid-fun]}]
+  [name f sfunc]
   {:name name
-   :monoid-fun (fn [x] (when x (let [v (monoid-fun x)]
-                                (m/delegate v f))))})
+   :whole-record true
+   :monoid-fun (fn [ent x i] (when x (let [v (util/run-monoid ent x i sfunc)]
+                                      (m/delegate v (comp f m/value)))))})
 
 (defmacro statfn
   "Create a function for computing statistics suitable for passing as
@@ -122,7 +124,7 @@
   [fn-name monoidfn & {:keys [name]}]
   (let [kwname (or name (keyword fn-name))]
     `{:name ~kwname
-      :monoid-fun ~monoidfn}))
+      :monoid-fun (fn [v# & _#] (~monoidfn v#))}))
 
 (defmacro defstatfn
   "Define a function for computing statistics suitable for passing as
@@ -136,8 +138,8 @@
 (defn by
   ([extractor sfunc]
      (assoc (update-monoid-fun sfunc
-                               (fn [mfun] #(when %2 (mfun %1 (extractor %1))))
-                               (fn [mfun] #(when %2 (mfun (extractor %1)))))
+                               (fn [mfun] #(when %2 (mfun %1 (extractor %1) %3)))
+                               (fn [mfun] #(when %2 (mfun (extractor %1) %3))))
        :whole-record true))
   ([extractor sfunc sfunc2 & sfuncs]
      (by extractor (apply consolidate sfunc sfunc2 sfuncs))))
@@ -168,8 +170,8 @@
   (let [f (util/prep (cons value-sfunc1 value-sfuncs))]
     {:name field-name
      :whole-record true
-     :monoid-fun (fn [ent v] (when v {(key-extractor ent)
-                                     (f ent v)}))}))
+     :monoid-fun (fn [ent v i] (when v {(key-extractor ent)
+                                       (f ent v i)}))}))
 
 (defn map-with-value
   "Add a map named field-name to the result map. The values for the
@@ -197,7 +199,7 @@
   (let [f (util/prep (cons value-sfunc1 value-sfuncs))]
     {:name field-name
      :whole-record true
-     :monoid-fun (fn [ent v] (when v {v (f ent (value-extractor ent))}))}))
+     :monoid-fun (fn [ent v i] (when v {v (f ent (value-extractor ent) i)}))}))
 
 (defconstrainedfn map-of
   "Add a map named field-name to the result map. With type :key, as
@@ -223,7 +225,7 @@
     -->  {:all {:every-ten {1 {:last 14, :sum 25, :first 11}, 0 {:last 2, :sum 6, :first 1}}}}"
   [split-fn field-name sfunc1 & sfuncs]
   (let [f (util/prep (cons sfunc1 sfuncs))]
-    {:monoid-fun (fn [ent v] {(split-fn v) (f ent v)})
+    {:monoid-fun (fn [ent v i] {(split-fn v) (f ent v i)})
      :whole-record true
      :name field-name}))
 
@@ -244,11 +246,11 @@
         (fn [fields]
           (let [finalizer (if (fn? fields) :_ identity)
                 fields (if (fn? fields) {:_ fields} fields)]
-            (fn [ent]
+            (fn [ent i]
               (tfmap (fn [pred]
                       (when (util/safely-run {:where "Set predicate" :what ent} (pred ent))
                         (finalizer
-                         (tfmap #(util/safely-run {:where "Field extractor" :what ent} (% ent))
+                         (tfmap #(util/safely-run {:where "Field extractor" :what ent} (% ent i))
                                fields))))
                     pred-map)))))))
 
@@ -292,8 +294,8 @@
   [f set-name-f]
   (fn [fields]
     (let [f (f fields)]
-      (fn [ent]
-        (let [res (f ent)]
+      (fn [ent i]
+        (let [res (f ent i)]
           (if-let [set-name (set-name-f ent)]
             (assoc res set-name (:all res))
             res))))))
@@ -303,8 +305,8 @@
      (let [~result-name ~result-body]
        (fn [fields#]
          (let [f# (f# fields#)]
-           (fn [ent#]
-             (let [~res-name (f# ent#)]
+           (fn [ent# i#]
+             (let [~res-name (f# ent# i#)]
                ~res-body)))))))
 
 (defsetop complement
@@ -421,6 +423,13 @@
   Sfoo-or-baz-or-spamZ"}
   unions (partial nested-set-operations union "or"))
 
+(defn grouping [groupname num sfunc & sfuncs]
+  (let [f (util/prep (cons sfunc sfuncs))]
+    {:whole-record true
+     :name groupname
+     :monoid-fun (fn [ent v i]
+                   (grouped/group (f ent v i) num i))}))
+
 ;; mapping can be parallelized
 ;; reduction can be parallelized (ops are associative)
 (defn calculate
@@ -429,19 +438,20 @@
   ([sets-fn fields input]
      (let [leaf-fn (sets-fn fields)]
        (when (seq input)
-         (m/value (reduce m/<> (pmap leaf-fn input)))))))
+         (m/value (reduce m/<> (pmap leaf-fn input (iterate inc 0))))))))
 
 (util/if-ns-avail (require '[clojure.core.reducers :as r])
                   (defn r-calculate
                     ([fields input]
-                       (calculate (sets) fields input))
+                       (r-calculate (sets) fields input))
                     ([sets-fn fields input]
                        (let [leaf-fn (sets-fn fields)]
                          (when (seq input)
                            (m/value (r/fold (fn ([a b] (m/<> a b))
                                               ([] nil))
                                             m/<>
-                                            (r/map leaf-fn input)))))))
+                                            (r/map #(leaf-fn (first %) (second %))
+                                                   (mapv vector input (iterate inc 0)))))))))
                   (def r-calculate calculate))
 
 (defn xget

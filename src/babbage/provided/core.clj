@@ -7,7 +7,7 @@
             [clojure.core :as clj]
             [clojure.set :as s])
   (:import [babbage.provided.gaussian Gaussian])
-  (:use [babbage.core :only [defstatfn statfn stats post]]
+  (:use [babbage.core :only [defstatfn statfn stats post consolidate by]]
         babbage.util
         [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
@@ -34,17 +34,17 @@
 (defstatfn sum m-sum)
 (defstatfn count (fn [x] (m-sum (if (nil? x) 0 1))))
 
-(defrecord Any [b]
+(deftype Any [b]
   monoid/Monoid
   (<> [self other] (if b self other))
-  (mempty [self] (->Any false))
+  (mempty [self] (Any. false))
   (mempty? [self] (not b))
   (value [self] b))
 
-(defrecord All [b]
+(deftype All [b]
   monoid/Monoid
   (<> [self other] (if b other self))
-  (mempty [self] (->Any true))
+  (mempty [self] (All. true))
   (mempty? [self] (boolean b))
   (value [self] b))
 
@@ -82,8 +82,13 @@
 (defn count-binned-normalized [result-name count-name bin-name]
   {:requires [count-name bin-name]
    :name result-name
-   :processor (fn [m] (let [c (count-name m)]
+   :processor (fn [m] (when-let [c (count-name m)]
                        (assoc m result-name (fmap #(/ (double %) c) (bin-name m)))))})
+
+(defn rate [ts-extractor]
+  (post :rate (fn [m] (when (> (:count m) 1)
+                       (/ (- (:last m) (:first m)) (double (dec (:count m))))))
+        (consolidate (by ts-extractor last first) count)))
 
 (def count-binned-normalized* (count-binned-normalized :count-binned-normalized
                                                        :count :count-binned))
@@ -104,5 +109,5 @@
     (statfn histogram h)))
 
 (defstatfn gaussian
-  (fn [& [v]]
+  (fn [& [v _]]
     (when v (Gaussian. 1 (double v) 0))))
