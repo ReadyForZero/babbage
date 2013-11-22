@@ -7,7 +7,7 @@
             [clojure.core :as clj]
             [clojure.set :as s])
   (:import [babbage.provided.gaussian Gaussian])
-  (:use [babbage.core :only [defstatfn statfn stats post consolidate by]]
+  (:use [babbage.core :only [post consolidate by]]
         babbage.util
         [clojure.algo.generic.functor :only [fmap]]
         [trammel.core :only [defconstrainedfn]])
@@ -18,21 +18,32 @@
 (def m-first (monoid (fn [a b] a) nil))
 (def m-last (monoid (fn [a b] b) nil))
 
-(defstatfn first m-first)
-(defstatfn last m-last)
+(defn ignore-index [mf]
+  (fn [v i] (mf v)))
+
+(def first {:name :first
+            :monoid-fun (ignore-index m-first)})
+
+(def last {:name :last
+           :monoid-fun (ignore-index m-last)})
 
 (def m-min (monoid clojure.core/min Double/POSITIVE_INFINITY))
-(defstatfn min m-min)
+(def min {:name :min
+          :monoid-fun (ignore-index m-min)})
 
 (def m-max (monoid clojure.core/max Double/NEGATIVE_INFINITY))
-(defstatfn max m-max)
+(def max {:name :max
+          :monoid-fun (ignore-index m-max)})
 
 (def m-prod (monoid * 1))
-(defstatfn prod m-prod)
+(def prod {:name :prod
+           :monoid-fun (ignore-index m-prod)})
 
 (def m-sum (monoid + 0)) ;; Sum monoid, used for next two stats.
-(defstatfn sum m-sum)
-(defstatfn count (fn [x] (m-sum (if (nil? x) 0 1))))
+(def sum {:name :sum
+          :monoid-fun (ignore-index m-sum)})
+(def count {:name :count
+            :monoid-fun (fn [x _] (m-sum (if (nil? x) 0 1)))})
 
 (deftype Any [b]
   monoid/Monoid
@@ -48,11 +59,18 @@
   (mempty? [self] (boolean b))
   (value [self] b))
 
-(defstatfn any ->Any)
-(defstatfn all ->All)
+(def any {:name :any
+          :monoid-fun (ignore-index ->Any)})
 
-(defstatfn list (fn [x] (when-not (nil? x) [x]))) 
-(defstatfn set (fn [x] (when-not (nil? x) #{x})))
+(def all {:name :all
+          :monoid-fun (ignore-index ->All)})
+
+(def list {:name :list
+           :monoid-fun (fn [x _] (when-not (nil? x) [x]))})
+
+(def set {:name :set
+          :monoid-fun (fn [x _] (when-not (nil? x) #{x}))})
+
 
 ;; "mean" is dependent on other computed statistics, and has the
 ;; computation function defined instead of a monoid.
@@ -70,12 +88,13 @@
 
 (defn mean-m [x] (when x (Mean. x 1)))
 
-(defstatfn mean mean-m)
+(def mean
+  {:name :mean
+   :monoid-fun (fn [x _] (when x (Mean. x 1)))})
 
-;; Keep track of counts for each item. This result of this is like 'frequencies'.
-(defstatfn count-binned
-  (fn [o]
-    (if (nil? o) (sorted-map) (sorted-map o (m-sum 1)))))
+(def count-binned
+  {:name :count-binned
+   :monoid-fun (fn [o _] (if (nil? o) (sorted-map) (sorted-map o (m-sum 1))))})
 
 (def count-unique (post :count-unique clj/count set))
 
@@ -85,13 +104,30 @@
    :processor (fn [m] (when-let [c (count-name m)]
                        (assoc m result-name (fmap #(/ (double %) c) (bin-name m)))))})
 
-(defn rate [ts-extractor]
+(defn rate
+  "Calculate the rate at which entities with a value occur in the
+   input stream, using ts-extractor to find times of occurrences in
+   the entities. If there are fewer than two entities, the rate will
+   be nil. Assumes that the input stream is properly ordered.
+
+
+   Ex.:
+
+   > (require '[babbage.provided.core :as p])
+   > (def fields {:x (stats :x p/count (p/rate :ts))
+                  :y (stats :y p/count (p/rate :ts))})
+   > (calculate fields [{:y 1 :x 1 :ts 10} {:x 2 :y 1 :ts 11} {:y 1 :ts 12} {:x 1 :ts 13}])
+   {:all {:x {:count 3, :rate 1.5}, :y {:count 3, :rate 1.0}}}"
+
+  
+  [ts-extractor]
   (post :rate (fn [m] (when (> (:count m) 1)
                        (/ (- (:last m) (:first m)) (double (dec (:count m))))))
         (consolidate (by ts-extractor last first) count)))
 
 (def count-binned-normalized* (count-binned-normalized :count-binned-normalized
-                                                       :count :count-binned))
+                                                       :count
+                                                       :count-binned))
 
 (defn ratio [of to & [ratio-name]]
   (let [key (or ratio-name (keyword (str (name of) "-to-" (if (number? to) to (name to)))))]
@@ -106,8 +142,9 @@
   "Given a width, returns a function that results in a histogram, where buckets are of 'width' width."
   [width]
   (let [h (histogram/m-histogram width)]
-    (statfn histogram h)))
+    {:name :histogram
+     :monoid-fun (ignore-index h)}))
 
-(defstatfn gaussian
-  (fn [& [v _]]
-    (when v (Gaussian. 1 (double v) 0))))
+(def gaussian {:name :gaussian
+               :monoid-fun (fn [& [v _]]
+                             (when v (Gaussian. 1 (double v) 0)))})

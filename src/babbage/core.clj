@@ -98,44 +98,32 @@
    If one were also interested in the identity of the unique values,
    this could be more efficiently specifying a dependency and
    post-processing function (see ratio in provided.core)."
-
   [name f sfunc]
   {:name name
    :whole-record true
    :monoid-fun (fn [ent x i] (when x (let [v (util/run-monoid ent x i sfunc)]
                                       (m/delegate v (comp f m/value)))))})
 
-(defmacro statfn
-  "Create a function for computing statistics suitable for passing as
-  an argument to stats. \"monoidfn\" should be the underlying function
-  that combines values. The computed value will be inserted in the
-  result map with the same name as fn-name or, if it is provided, the
-  value of the :name optional argument. The :requires optional
-  argument should contain the names of the functions that monoidfn
-  expects already to have run.
-
-  If the function being defined is not parameterized, use defstatfn.
-  This macro is only necessary for creating functions on the fly: see
-  ratio and histogram in babbage.provided.core for examples.
-
-  Functions that are more than just simple wrappers will probably not
-  be able to use this macro (or defstatfn): see e.g.
-  map-{with-key,with-value,of}."
-  [fn-name monoidfn & {:keys [name]}]
-  (let [kwname (or name (keyword fn-name))]
-    `{:name ~kwname
-      :monoid-fun (fn [v# & _#] (~monoidfn v#))}))
-
-(defmacro defstatfn
-  "Define a function for computing statistics suitable for passing as
-   an argument to stats. Same as statfn, except that def is used to
-   create a top-level var holding the function, and there is an
-   additional :doc optional argument for supplying a docstring."
-   [fn-name monoidfn & {:keys [name doc]}]
-  `(def ~fn-name (with-meta (statfn ~fn-name ~monoidfn :name ~name)
-                   {:doc ~doc})))
-
 (defn by
+  "Nest stats functions using extractor inside a stats function using a different extractor.
+
+   Normally, in a call like (stats :x count sum ...), all the status
+   functions will be passed the value of the :x key in the entities in
+   the input. Using by, a function can access a different value from
+   the entity:
+
+     (calculate (stats :x sum (by :y (rename sum :y-sum))) [{:x 1 :y 4} {:y 2}])
+     {:all {:sum 1, :y-sum 4}}
+
+   Note that :y-sum is 4, not 6, because the modified sum function is
+   only called when the extracted value it's nested under is non-nil.
+
+   The definition of rate is a more useful example:
+
+     (defn rate [ts-extractor]
+       (post :rate (fn [m] (when (> (:count m) 1)
+                            (/ (- (:last m) (:first m)) (double (dec (:count m))))))
+             (consolidate (by ts-extractor last first) count))"
   ([extractor sfunc]
      (assoc (update-monoid-fun sfunc
                                (fn [mfun] #(when %2 (mfun %1 (extractor %1) %3)))
@@ -228,6 +216,28 @@
     {:monoid-fun (fn [ent v i] {(split-fn v) (f ent v i)})
      :whole-record true
      :name field-name}))
+
+(defn grouping
+  "Run stats functions over subsequences of length runlength of the
+   input stream, placing the results under groupname. E.g., to see the
+   mean of every three elements, as well as the mean of all elements
+   overall:
+
+   > (require '[babbage.provided.core :as p])
+   > (calculate (stats identity p/mean (grouping :each-three 3 p/mean p/count)) (range 10))
+   {:all {:mean 4.5, :each-three ({:count 3, :mean 1.0}
+                                  {:count 3, :mean 4.0}
+                                  {:count 3, :mean 7.0}
+                                  {:count 1, :mean 9.0})}}
+
+   Note that grouping behavior is similar to that of partition-all;
+   there may be fewer than runlength elements in the final group."
+  [groupname runlength sfunc & sfuncs]
+  (let [f (util/prep (cons sfunc sfuncs))]
+    {:whole-record true
+     :name groupname
+     :monoid-fun (fn [ent v i]
+                   (grouped/group (f ent v i) runlength i))}))
 
 (defn sets
   "Describe subsets for which to calculate statistics.
@@ -423,22 +433,27 @@
   Sfoo-or-baz-or-spamZ"}
   unions (partial nested-set-operations union "or"))
 
-(defn grouping [groupname num sfunc & sfuncs]
-  (let [f (util/prep (cons sfunc sfuncs))]
-    {:whole-record true
-     :name groupname
-     :monoid-fun (fn [ent v i]
-                   (grouped/group (f ent v i) num i))}))
+(defn calculations
+  ([fields input]
+     (calculations (sets) fields input))
+  ([sets-fn fields input]
+     (when (seq input)
+       (map m/value (reductions m/<> (pmap (sets-fn fields) input (iterate inc 0)))))))
 
-;; mapping can be parallelized
-;; reduction can be parallelized (ops are associative)
+(defn- partition-and-reduce [inp]
+  (letfn [(go [i]
+            (if (second i)
+              (recur (partition-all 512 (pmap #(reduce m/<> nil %) i)))
+              (reduce m/<> nil (first i))))]
+    (go (partition-all 512 inp))))
+
 (defn calculate
   ([fields input]
      (calculate (sets) fields input))
   ([sets-fn fields input]
      (let [leaf-fn (sets-fn fields)]
        (when (seq input)
-         (m/value (reduce m/<> (pmap leaf-fn input (iterate inc 0))))))))
+         (m/value (partition-and-reduce (pmap leaf-fn input (iterate inc 0))))))))
 
 (util/if-ns-avail (require '[clojure.core.reducers :as r])
                   (defn r-calculate
