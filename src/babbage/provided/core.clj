@@ -72,8 +72,6 @@
           :monoid-fun (fn [x _] (when-not (nil? x) #{x}))})
 
 
-;; "mean" is dependent on other computed statistics, and has the
-;; computation function defined instead of a monoid.
 (deftype Mean [s c]
   monoid/Monoid
   (<> [self other] (if other
@@ -136,7 +134,9 @@
      :processor (if (number? to)
                   (let [to (double to)]
                     (fn [m] (assoc m key (/ (get m of) to))))
-                  (fn [m] (assoc m key (/ (double (get m of)) (get m to)))))}))
+                  (fn [m] (when-let [to (get m to)]
+                           (when-not (zero? to)
+                             (assoc m key (/ (double (get m of)) to))))))}))
 
 (defn histogram
   "Given a width, returns a function that results in a histogram, where buckets are of 'width' width."

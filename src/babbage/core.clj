@@ -98,11 +98,13 @@
    If one were also interested in the identity of the unique values,
    this could be more efficiently specifying a dependency and
    post-processing function (see ratio in provided.core)."
-  [name f sfunc]
-  {:name name
-   :whole-record true
-   :monoid-fun (fn [ent x i] (when x (let [v (util/run-monoid ent x i sfunc)]
-                                      (m/delegate v (comp f m/value)))))})
+  ([f sfunc]
+     (post (:name sfunc) f sfunc))
+  ([name f sfunc]
+     {:name name
+      :whole-record true
+      :monoid-fun (fn [ent x i] (when x (let [v (util/run-monoid ent x i sfunc)]
+                                         (m/delegate v (comp f m/value)))))}))
 
 (defn by
   "Nest stats functions using extractor inside a stats function using a different extractor.
