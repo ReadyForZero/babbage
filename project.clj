@@ -3,7 +3,7 @@
   :dependencies [[expectations "1.4.18"]
                  [org.clojure/clojure "1.5.1"]
                  [org.clojure/algo.generic "0.1.0"]
-                 [bwo/macroparser "0.0.6"]
+                 [bwo/macroparser "0.0.7b"]
                  [potemkin "0.3.0"]
                  [the/parsatron "0.0.4"]
                  [trammel "0.7.0"]]

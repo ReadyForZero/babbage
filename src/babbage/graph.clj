@@ -14,7 +14,7 @@
    (p/named :name (p/symbol))
    (p/named :provides (p/maybe (p/keyword)))
    (p/named :docstring (p/maybe (p/string)))
-   (p/named :attr-map (p/maybe (p/map)))
+   (p/named :attr-map (p/maybe (p/flattened-map)))
    (f/arities)))
 
 (defn- ok-destructuring?
