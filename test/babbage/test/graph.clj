@@ -24,6 +24,13 @@
 (defgraphfn variance [mean mean2]
   (double (- mean2 (* mean mean))))
 
+(defgraphfn no-input []
+  4)
+
+(expect {:no-input 4} (run-graph {} no-input))
+
+(expect {:no-input 4 :sum 10 :xs [1 2 3 4]} (run-graph {:xs [1 2 3 4]} no-input sum))
+
 ;; xs not provided; exception
 (expect Exception (run-graph {} count-xs sum sum-squared mean mean2 variance))
 

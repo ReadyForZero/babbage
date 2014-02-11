@@ -93,7 +93,7 @@
      :else `(if ~test (~@wrap-with ~expr) ~expr))))
 
 (defn- run-layer-elt [result leaf-strat lazy? elt]
-  (if (not (seq (:requires elt)))
+  (if (nil? (:requires elt))
     [(:provides elt) (wrap-when lazy? delay (:value elt))]
     (let [r (wrap-when lazy? delay (leaf-strat (:value elt)
                                                (map (wrap-when lazy? (comp deref) result)
