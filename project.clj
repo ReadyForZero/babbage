@@ -1,4 +1,4 @@
-(defproject readyforzero/babbage "1.1.0"
+(defproject readyforzero/babbage "1.1.1"
   :min-lein-version "2.0.0"
   :dependencies [[expectations "1.4.18"]
                  [org.clojure/clojure "1.5.1"]
