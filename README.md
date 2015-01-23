@@ -7,7 +7,7 @@ compute summary measures in a declarative way.
 ## Usage
 
 ```clojure
-[readyforzero/babbage "1.0.2"] ;; In your project.clj
+[readyforzero/babbage "1.1.1"] ;; In your project.clj
 
 (:require [babbage.core :refer :all]) ;; Core functions.
 
